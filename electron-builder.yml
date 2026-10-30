@@ -1,0 +1,30 @@
+appId: app.stashwiki.desktop
+productName: StashWiki
+copyright: StashWiki
+directories:
+  output: dist
+  buildResources: build
+files:
+  - out/**
+  - package.json
+  - "!**/*.map"
+asar: true
+win:
+  icon: build/icon.png
+  signAndEditExecutable: true
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: StashWiki
+  artifactName: StashWiki-Setup-${version}.exe
+  deleteAppDataOnUninstall: false
+portable:
+  artifactName: StashWiki-Portable-${version}.exe
+fileAssociations:
+  - ext: stashwiki
+    name: StashWiki file
+    description: StashWiki shared wiki
+    role: Editor
