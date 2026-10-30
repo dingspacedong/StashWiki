@@ -13,7 +13,19 @@ import { pageThumb, visibleRows } from '../components/Infobox'
 import { SITE_CSS, SITE_JS } from './siteAssets'
 import { STORY_CSS, STORY_SITE_CSS } from '../lib/storyStyles'
 import { parseCards, renderCardsHtml } from '../lib/cards'
-import { RATING_LABELS, STATUS_LABELS, appearances, formatCount, isWikiPage, readingTime, seriesStories, storyChapters, wordCount } from '../lib/stories'
+import { mixLogos, mixSiteCss, mixSiteScript, mixThemes } from '../lib/mixUp'
+import { removeLook } from '../lib/looks'
+import {
+  RATING_LABELS,
+  STATUS_LABELS,
+  appearances,
+  formatCount,
+  isWikiPage,
+  readingTime,
+  seriesStories,
+  storyChapters,
+  wordCount
+} from '../lib/stories'
 
 export interface Site {
   /** Relative path → file contents. */
@@ -66,7 +78,7 @@ export function buildSite(meta: WikiMeta, allPages: Record<string, Page>, opts: 
   const mainId = meta.mainPageId && allPages[meta.mainPageId] && shown(allPages[meta.mainPageId]) ? meta.mainPageId : null
 
   // File names: the main page is index.html; others are named after their titles.
-  const used = new Set(['index', 'all-pages', 'categories', 'style', 'site', 'search-index', 'stories', 'custom'])
+  const used = new Set(['index', 'all-pages', 'categories', 'style', 'site', 'search-index', 'stories', 'custom', 'mix'])
   const wikiPages = pages.filter(isWikiPage)
   const storyPages = pages.filter((p) => p.story)
   const hasStories = storyPages.length > 0
@@ -97,11 +109,15 @@ export function buildSite(meta: WikiMeta, allPages: Record<string, Page>, opts: 
     }
   }
   const catFile = new Map<string, string>()
-  for (const [k, c] of [...categories].sort((a, b) => a[1].name.localeCompare(b[1].name))) catFile.set(k, unique('category-' + slugify(c.name)) + '.html')
+  for (const [k, c] of [...categories].sort((a, b) => a[1].name.localeCompare(b[1].name)))
+    catFile.set(k, unique('category-' + slugify(c.name)) + '.html')
 
   const images = new Set<string>()
   const usedFonts = new Set<string>()
   const customOn = !meta.customCssOff
+  // Switching color themes: each picked theme goes in mix.css, and the wiki's own pick comes out of custom.css.
+  const mixing = customOn && mixThemes(meta).length > 0
+  const customCss = mixing ? removeLook(meta.customCss ?? '', 'color-theme') : (meta.customCss ?? '')
   const files: Record<string, string> = {}
 
   /** Fix up a finished piece of page HTML: wiki links, pictures, contents links. */
@@ -119,7 +135,10 @@ export function buildSite(meta: WikiMeta, allPages: Record<string, Page>, opts: 
       } else {
         const span = doc.createElement('span')
         // Keep card styling classes, drop the link ones.
-        span.className = [...a.classList].filter((c) => c !== 'wikilink' && c !== 'new').concat('missing').join(' ')
+        span.className = [...a.classList]
+          .filter((c) => c !== 'wikilink' && c !== 'new')
+          .concat('missing')
+          .join(' ')
         span.innerHTML = a.innerHTML
         a.replaceWith(span)
       }
@@ -156,7 +175,13 @@ export function buildSite(meta: WikiMeta, allPages: Record<string, Page>, opts: 
   }
 
   const layout = (title: string, content: string, page: Page | null): string => {
-    const logo = meta.logo ? (images.add(meta.logo), `<img src="images/${escapeHtml(meta.logo)}" alt="">`) : `<span class="brand-dot">${escapeHtml(meta.name.slice(0, 1))}</span>`
+    // With several logos switching, site.js picks one on every page.
+    const logos = mixLogos(meta)
+    for (const l of logos) images.add(l)
+    const logo = meta.logo
+      ? (images.add(meta.logo),
+        `<img src="images/${escapeHtml(meta.logo)}" alt=""${logos.length ? ` data-logos="${escapeHtml(JSON.stringify(logos))}"` : ''}>`)
+      : `<span class="brand-dot">${escapeHtml(meta.name.slice(0, 1))}</span>`
     return `<!doctype html>
 <html lang="en">
 <head>
@@ -164,9 +189,9 @@ export function buildSite(meta: WikiMeta, allPages: Record<string, Page>, opts: 
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title === meta.name ? title : `${title} — ${meta.name}`)}</title>
 <meta name="generator" content="StashWiki">
-<link rel="stylesheet" href="style.css">${customOn && meta.customCss?.trim() ? '\n<link rel="stylesheet" href="custom.css">' : ''}${
-      customOn && page?.customCss?.trim() ? `\n<style class="page-css">\n${styleText(page.customCss)}\n</style>` : ''
-    }
+<link rel="stylesheet" href="style.css">${customOn && customCss.trim() ? '\n<link rel="stylesheet" href="custom.css">' : ''}${
+      mixing ? `\n<link rel="stylesheet" href="mix.css">\n${mixSiteScript(meta)}` : ''
+    }${customOn && page?.customCss?.trim() ? `\n<style class="page-css">\n${styleText(page.customCss)}\n</style>` : ''}
 </head>
 <body style="${styleOf(page)}">
 <div class="backdrop"></div>
@@ -265,7 +290,9 @@ ${content}
   const crumbs = (story: Page | undefined, last?: string): string =>
     `<nav class="story-crumbs"><a href="stories.html">Stories</a>` +
     (story?.story?.series ? ` <span>›</span> <span class="muted">${escapeHtml(story.story.series)}</span>` : '') +
-    (story ? ` <span>›</span> ${last ? `<a href="${fileOf.get(story.id)}">${escapeHtml(story.title)}</a>` : `<span>${escapeHtml(story.title)}</span>`}` : '') +
+    (story
+      ? ` <span>›</span> ${last ? `<a href="${fileOf.get(story.id)}">${escapeHtml(story.title)}</a>` : `<span>${escapeHtml(story.title)}</span>`}`
+      : '') +
     (last ? ` <span>›</span> <span>${escapeHtml(last)}</span>` : '') +
     `</nav>`
   const note = (text: string | undefined, label: string): string =>
@@ -275,19 +302,33 @@ ${content}
     const info = p.story!
     const chapters = published(p)
     const words = chapters.reduce((n, c) => n + wordCount(c.body), 0)
-    const row = (label: string, items: string[]): string => (items.length ? `<div class="story-meta-row"><span class="story-meta-label">${label}</span>${items.join('')}</div>` : '')
+    const row = (label: string, items: string[]): string =>
+      items.length ? `<div class="story-meta-row"><span class="story-meta-label">${label}</span>${items.join('')}</div>` : ''
     const series = info.series ? seriesStories(info.series, allPages).filter((x) => fileOf.has(x.id)) : []
-    const about = p.body.replace(/<p>\s*<\/p>/g, '').trim() ? renderBody(p.body, exists, (json) => renderCardsHtml(parseCards(json), (t) => byKey.get(titleKey(t)), meta)).html : ''
+    const about = p.body.replace(/<p>\s*<\/p>/g, '').trim()
+      ? renderBody(p.body, exists, (json) => renderCardsHtml(parseCards(json), (t) => byKey.get(titleKey(t)), meta)).html
+      : ''
     return (
       `<article class="page story-page">${crumbs(p)}<header class="story-hero">${cover(p, 'big')}<div class="story-hero-text">` +
       `<h1 class="page-title story-title">${escapeHtml(p.title)}</h1>` +
-      (info.series ? `<div class="story-series-line">${info.seriesPart ? `Part ${info.seriesPart} of ` : 'Part of '}<strong>${escapeHtml(info.series)}</strong></div>` : '') +
+      (info.series
+        ? `<div class="story-series-line">${info.seriesPart ? `Part ${info.seriesPart} of ` : 'Part of '}<strong>${escapeHtml(info.series)}</strong></div>`
+        : '') +
       `<div class="story-badges">${badge('status-' + info.status, STATUS_LABELS[info.status])}${info.rating ? badge('rating-' + info.rating, RATING_LABELS[info.rating]) : ''}</div>` +
       (info.summary.trim() ? `<div class="story-summary">${inline(info.summary.trim())}</div>` : '') +
       `<div class="story-stats"><span><b>${chapters.length}</b> chapter${chapters.length === 1 ? '' : 's'}</span><span><b>${formatCount(words)}</b> words</span><span><b>${readingTime(words)}</b> read</span></div>` +
-      row('Warnings', info.warnings.map((w) => `<span class="chip warn">${escapeHtml(w)}</span>`)) +
-      row('Characters', info.characters.map((c) => `<a class="chip link" data-wikilink="${escapeHtml(c)}">${escapeHtml(c)}</a>`)) +
-      row('Tags', info.tags.map((t) => `<span class="chip">${escapeHtml(t)}</span>`)) +
+      row(
+        'Warnings',
+        info.warnings.map((w) => `<span class="chip warn">${escapeHtml(w)}</span>`)
+      ) +
+      row(
+        'Characters',
+        info.characters.map((c) => `<a class="chip link" data-wikilink="${escapeHtml(c)}">${escapeHtml(c)}</a>`)
+      ) +
+      row(
+        'Tags',
+        info.tags.map((t) => `<span class="chip">${escapeHtml(t)}</span>`)
+      ) +
       (chapters.length ? `<div class="story-actions"><a class="btn" href="${fileOf.get(chapters[0].id)}">▶ Start reading</a></div>` : '') +
       `</div></header>` +
       `<section class="story-chapters"><h2>Chapters</h2>` +
@@ -305,7 +346,10 @@ ${content}
       (about ? `<section class="story-about"><div class="prose" data-group>${about}</div></section>` : '') +
       (series.length > 1
         ? `<section class="story-series"><h2>${escapeHtml(info.series!)}</h2><ol>${series
-            .map((x) => `<li>${x.id === p.id ? `<strong>${escapeHtml(x.title)}</strong>` : `<a href="${fileOf.get(x.id)}">${escapeHtml(x.title)}</a>`}</li>`)
+            .map(
+              (x) =>
+                `<li>${x.id === p.id ? `<strong>${escapeHtml(x.title)}</strong>` : `<a href="${fileOf.get(x.id)}">${escapeHtml(x.title)}</a>`}</li>`
+            )
             .join('')}</ol></section>`
         : '') +
       `</article>`
@@ -331,7 +375,11 @@ ${content}
       end +
       `<nav class="chapter-nav">${prev ? `<a class="btn ghost" href="${fileOf.get(prev.id)}">← Previous</a>` : '<span></span>'}` +
       (story ? `<a href="${fileOf.get(story.id)}">Contents</a>` : '') +
-      (next ? `<a class="btn" href="${fileOf.get(next.id)}">Next →</a>` : story ? `<a class="btn ghost" href="${fileOf.get(story.id)}">Back to the story</a>` : '<span></span>') +
+      (next
+        ? `<a class="btn" href="${fileOf.get(next.id)}">Next →</a>`
+        : story
+          ? `<a class="btn ghost" href="${fileOf.get(story.id)}">Back to the story</a>`
+          : '<span></span>') +
       `</nav></div></article>`
     )
   }
@@ -347,7 +395,12 @@ ${content}
           const shownCh = chapters.filter((c) => fileOf.has(c.id))
           return (
             `<li><a href="${fileOf.get(story.id)}">${escapeHtml(story.title)}</a>` +
-            (shownCh.length ? ` <span class="muted small">— mentioned in ${shownCh.slice(0, 4).map((c) => `<a href="${fileOf.get(c.id)}">${escapeHtml(c.chapter!.name)}</a>`).join(', ')}${shownCh.length > 4 ? ` and ${shownCh.length - 4} more` : ''}</span>` : '') +
+            (shownCh.length
+              ? ` <span class="muted small">— mentioned in ${shownCh
+                  .slice(0, 4)
+                  .map((c) => `<a href="${fileOf.get(c.id)}">${escapeHtml(c.chapter!.name)}</a>`)
+                  .join(', ')}${shownCh.length > 4 ? ` and ${shownCh.length - 4} more` : ''}</span>`
+              : '') +
             `</li>`
           )
         })
@@ -360,7 +413,11 @@ ${content}
   for (const p of pages) {
     if (opts.only && p.id !== opts.only) continue
     if (p.story || p.chapter) {
-      files[fileOf.get(p.id)!] = layout(p.chapter ? `${p.chapter.name} — ${allPages[p.chapter.storyId]?.title ?? ''}` : p.title, finish(p.story ? storyHtml(p) : chapterHtml(p)), p)
+      files[fileOf.get(p.id)!] = layout(
+        p.chapter ? `${p.chapter.name} — ${allPages[p.chapter.storyId]?.title ?? ''}` : p.title,
+        finish(p.story ? storyHtml(p) : chapterHtml(p)),
+        p
+      )
       continue
     }
     const t = meta.templates.find((x) => x.id === p.templateId)
@@ -369,9 +426,14 @@ ${content}
     const content =
       `<article class="page"><h1 class="page-title">${escapeHtml(p.title)}</h1>` +
       (meta.tagline ? `<div class="page-sub">${escapeHtml(meta.tagline)}</div>` : '') +
-      `<div class="article">${topMatter(p)}${t ? infobox(p, t) : ''}<div class="prose" data-group>${body}</div>${p.galleries.filter((g) => g.images.length).map(gallery).join('')}<div class="clear"></div></div>` +
+      `<div class="article">${topMatter(p)}${t ? infobox(p, t) : ''}<div class="prose" data-group>${body}</div>${p.galleries
+        .filter((g) => g.images.length)
+        .map(gallery)
+        .join('')}<div class="clear"></div></div>` +
       appearsIn(p) +
-      (cats.length ? `<div class="catlinks"><b>Categories:</b>${cats.map((c) => `<a href="${catFile.get(titleKey(c))}">${escapeHtml(c)}</a>`).join('')}</div>` : '') +
+      (cats.length
+        ? `<div class="catlinks"><b>Categories:</b>${cats.map((c) => `<a href="${catFile.get(titleKey(c))}">${escapeHtml(c)}</a>`).join('')}</div>`
+        : '') +
       `<div class="page-foot">Last edited ${escapeHtml(date(p.updatedAt))}</div></article>`
     files[fileOf.get(p.id)!] = layout(p.title, finish(content), p)
   }
@@ -385,7 +447,9 @@ ${content}
   }
   const allPagesHtml =
     `<h1 class="page-title">All pages</h1><p class="muted">${wikiPages.length} page${wikiPages.length === 1 ? '' : 's'}</p><div class="letter-groups">` +
-    [...groups].map(([l, list]) => `<div class="letter-group"><h3>${escapeHtml(l)}</h3><ul>${list.map((p) => `<li>${link(p)}</li>`).join('')}</ul></div>`).join('') +
+    [...groups]
+      .map(([l, list]) => `<div class="letter-group"><h3>${escapeHtml(l)}</h3><ul>${list.map((p) => `<li>${link(p)}</li>`).join('')}</ul></div>`)
+      .join('') +
     `</div>`
   files['all-pages.html'] = layout('All pages', allPagesHtml, null)
 
@@ -398,7 +462,9 @@ ${content}
       return (
         `<a class="story-card" href="${fileOf.get(st.id)}">${cover(st, 'small')}<div class="story-card-text"><div class="story-card-title">${st.story!.seriesPart ? `<span class="muted">${st.story!.seriesPart}. </span>` : ''}${escapeHtml(st.title)}</div>` +
         `<div class="story-badges">${badge('status-' + st.story!.status, STATUS_LABELS[st.story!.status])}${st.story!.rating ? badge('rating-' + st.story!.rating, RATING_LABELS[st.story!.rating]) : ''}</div>` +
-        (st.story!.summary ? `<p class="story-card-summary">${escapeHtml(st.story!.summary.replace(/\[\[([^\]|]+)(?:\|([^\]]*))?\]\]/g, (_m, a: string, b?: string) => b || a))}</p>` : '') +
+        (st.story!.summary
+          ? `<p class="story-card-summary">${escapeHtml(st.story!.summary.replace(/\[\[([^\]|]+)(?:\|([^\]]*))?\]\]/g, (_m, a: string, b?: string) => b || a))}</p>`
+          : '') +
         `<div class="story-card-meta">${ch.length} chapter${ch.length === 1 ? '' : 's'} · ${formatCount(words)} words</div></div></a>`
       )
     }
@@ -408,7 +474,9 @@ ${content}
       `<h1 class="page-title">Stories</h1>` +
         order
           .map((series) => {
-            const list = shelves.get(series)!.sort((a, b) => (series ? (a.story!.seriesPart ?? 999) - (b.story!.seriesPart ?? 999) : a.title.localeCompare(b.title)))
+            const list = shelves
+              .get(series)!
+              .sort((a, b) => (series ? (a.story!.seriesPart ?? 999) - (b.story!.seriesPart ?? 999) : a.title.localeCompare(b.title)))
             return `<section class="story-shelf">${series ? `<h2 class="shelf-title">📚 ${escapeHtml(series)}</h2>` : order.length > 1 ? '<h2 class="shelf-title">Stories</h2>' : ''}<div class="story-cards">${list.map(card).join('')}</div></section>`
           })
           .join(''),
@@ -417,7 +485,8 @@ ${content}
   }
   // A stories-only site opens on the shelf.
   if (storiesOnly) files['index.html'] = files['stories.html'] ?? layout(meta.name, '<p class="muted">No stories yet.</p>', null)
-  if (!mainId && !storiesOnly) files['index.html'] = layout(meta.name, `<p class="muted">Welcome to ${escapeHtml(meta.name)}.</p>` + allPagesHtml, null)
+  if (!mainId && !storiesOnly)
+    files['index.html'] = layout(meta.name, `<p class="muted">Welcome to ${escapeHtml(meta.name)}.</p>` + allPagesHtml, null)
 
   files['categories.html'] = layout(
     'Categories',
@@ -436,8 +505,13 @@ ${content}
     const desc = meta.categories[c.name]?.description
     const cards = c.pages
       .map((p) => {
-        const thumb = pageThumb(p, meta.templates.find((t) => t.id === p.templateId))
-        const img = thumb ? (images.add(thumb), `<img src="images/${escapeHtml(thumb)}" alt="" loading="lazy">`) : `<span>${escapeHtml(p.title.slice(0, 1))}</span>`
+        const thumb = pageThumb(
+          p,
+          meta.templates.find((t) => t.id === p.templateId)
+        )
+        const img = thumb
+          ? (images.add(thumb), `<img src="images/${escapeHtml(thumb)}" alt="" loading="lazy">`)
+          : `<span>${escapeHtml(p.title.slice(0, 1))}</span>`
         return `<a class="page-card" href="${fileOf.get(p.id)}"><span class="page-card-img">${img}</span><span class="page-card-title">${escapeHtml(p.title)}</span></a>`
       })
       .join('')
@@ -458,11 +532,12 @@ ${content}
   }))
   files['search-index.js'] = `window.SW_PAGES = ${JSON.stringify(index).replace(/</g, '\\u003c')};\n`
   // Bundled fonts named in custom CSS, page CSS or fancy blocks (ready-made looks and blocks use some) go along too.
-  const written = Object.values(files).join('\n') + (customOn ? (meta.customCss ?? '') : '')
+  const written = Object.values(files).join('\n') + (customOn ? customCss + (mixing ? mixSiteCss(meta) : '') : '')
   for (const f of GOOGLE_FONTS) if (written.includes(`"${f.family}"`) || written.includes(`'${f.family}'`)) usedFonts.add(f.key)
   files['style.css'] = fontFaceCss('fonts/', usedFonts) + '\n' + SITE_CSS + (hasStories ? STORY_CSS + STORY_SITE_CSS : '')
   files['site.js'] = SITE_JS
-  if (customOn && meta.customCss?.trim()) files['custom.css'] = meta.customCss
+  if (customOn && customCss.trim()) files['custom.css'] = customCss
+  if (mixing) files['mix.css'] = mixSiteCss(meta) + '\n'
 
   return { files, images: [...images], fonts: fontFiles(usedFonts), pageCount: pages.length, pageFiles: Object.fromEntries(fileOf) }
 }

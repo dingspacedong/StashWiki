@@ -58,6 +58,13 @@ Ready-made looks (`lib/looks.ts`) are CSS kept in the custom CSS between `/* ✦
 on reading screens (and while editing in the Simple style), never on the settings screens, and Ctrl/Cmd+, always
 opens settings, so CSS that hides something can always be fixed.
 
+Previews (the looks screen and Look & settings) can show `lib/samplePage.ts`, a made-up page with one of everything
+that is never saved; its pictures ship in `src/renderer/public/sample`.
+
+"Mix it up" (`lib/mixUp.ts`, `meta.mix` + `meta.extraLogos`) only changes what is shown: the app swaps the logo and
+the `color-theme` look at display time; an exported website gets `mix.css` (each theme scoped to
+`html[data-mix="…"]`), a tiny inline script that picks one, and a `data-logos` list that `site.js` picks from.
+
 ## Stories
 
 A story is a page with `story` details (summary, status, rating, warnings, tags, characters, series, cover and the

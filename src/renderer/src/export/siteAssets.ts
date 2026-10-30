@@ -208,6 +208,17 @@ export const SITE_JS = `/* Made with StashWiki: search, random page, picture vie
   var menu = document.querySelector('.menu-btn');
   if (menu) menu.addEventListener('click', function () { document.querySelector('.sidebar').classList.toggle('open'); });
 
+  // A different logo on every page, never the same one twice in a row
+  var logo = document.querySelector('.wiki-brand img[data-logos]');
+  if (logo) {
+    var logos = JSON.parse(logo.getAttribute('data-logos')), last = -1;
+    try { var seen = sessionStorage.getItem('sw-logo'); if (seen !== null) last = +seen; } catch (e) {}
+    var pick = Math.floor(Math.random() * logos.length);
+    if (pick === last) pick = (pick + 1) % logos.length;
+    try { sessionStorage.setItem('sw-logo', pick); } catch (e) {}
+    logo.src = 'images/' + logos[pick];
+  }
+
   // Random page
   var random = document.getElementById('sw-random');
   if (random) random.addEventListener('click', function (e) {

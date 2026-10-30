@@ -11,6 +11,7 @@ import { CSS_HINTS } from '../lib/customHtml'
 import { CodeArea } from '../components/CodeArea'
 import LookPicker from '../components/LookPicker'
 import { kb } from '../lib/platform'
+import { SAMPLE_ID, samplePage, sampleImagesUrl } from '../lib/samplePage'
 
 const EXAMPLE = `/* Rounded, glowing infobox */
 .infobox { border-radius: 14px; box-shadow: 0 0 18px rgba(150, 90, 255, .35); }
@@ -18,16 +19,48 @@ const EXAMPLE = `/* Rounded, glowing infobox */
 /* Fancy section headings */
 .prose h2 { border-bottom: 2px dashed var(--accent); }`
 
-/** A page as the exported website shows it, made to work inside a frame here. */
+/** A page as the exported website shows it, made to work inside a frame here. `SAMPLE_ID` shows the sample page. */
 export function previewDocument(meta: WikiMeta, pages: Record<string, Page>, pageId: string | null): string {
-  const site = buildSite({ ...meta, customCss: '', customCssOff: false }, pages, { only: pageId ?? '-', includePrivate: true })
+  const all = pageId === SAMPLE_ID ? { ...pages, [SAMPLE_ID]: samplePage(meta) } : pages
+  const site = buildSite({ ...meta, customCss: '', customCssOff: false, mix: undefined }, all, { only: pageId ?? '-', includePrivate: true })
   const html = (pageId && site.files[site.pageFiles[pageId]]) || site.files['all-pages.html']
   const fonts = new URL('fonts/', document.baseURI).href
   return html
-    .replace('<link rel="stylesheet" href="style.css">', `<style>${fontFaceCss(fonts)}\n${SITE_CSS}\n${STORY_CSS}\n${STORY_SITE_CSS}</style>\n<style id="sw-custom"></style>`)
+    .replace(
+      '<link rel="stylesheet" href="style.css">',
+      `<style>${fontFaceCss(fonts)}\n${SITE_CSS}\n${STORY_CSS}\n${STORY_SITE_CSS}</style>\n<style id="sw-custom"></style>`
+    )
     .replace(/<script\b[^>]*><\/script>/g, '')
+    .replace(/(src|href)="images\/(sw-sample-)/g, `$1="${sampleImagesUrl()}$2`)
     .replace(/(src|href)="images\//g, '$1="stash://wiki/images/')
     .replace(/url\(&quot;images\//g, 'url(&quot;stash://wiki/images/')
+}
+
+/** The sample page with the wiki's colors and custom CSS, for trying settings out. */
+export function SamplePreview(): React.JSX.Element {
+  const meta = useStore((s) => s.meta)!
+  const frame = useRef<HTMLIFrameElement>(null)
+  const doc = useMemo(() => previewDocument(meta, {}, SAMPLE_ID), [meta.theme, meta.templates, meta.name, meta.logo])
+  const push = (): void => {
+    const style = frame.current?.contentDocument?.getElementById('sw-custom')
+    if (style) style.textContent = meta.customCssOff ? '' : (meta.customCss ?? '')
+  }
+  useEffect(push, [meta.customCss, meta.customCssOff])
+  return (
+    <iframe
+      ref={frame}
+      className="sample-preview"
+      title="Sample page preview"
+      sandbox="allow-same-origin"
+      srcDoc={doc}
+      onLoad={() => {
+        push()
+        frame.current?.contentDocument?.addEventListener('click', (e) => {
+          if ((e.target as Element).closest('a')) e.preventDefault()
+        })
+      }}
+    />
+  )
 }
 
 export default function CssEditor(): React.JSX.Element {
@@ -38,7 +71,7 @@ export default function CssEditor(): React.JSX.Element {
   // Shown at once; the setting saves in the background.
   const [on, setOn] = useState(!meta.customCssOff)
   const sorted = useMemo(() => Object.values(pages).sort((a, b) => a.title.localeCompare(b.title)), [pages])
-  const [pageId, setPageId] = useState<string | null>(() => (meta.mainPageId && pages[meta.mainPageId] ? meta.mainPageId : (sorted[0]?.id ?? null)))
+  const [pageId, setPageId] = useState<string | null>(SAMPLE_ID)
   const frame = useRef<HTMLIFrameElement>(null)
   const [tab, setTab] = useState<'looks' | 'code'>('looks')
   const latest = useRef(code)
@@ -83,10 +116,10 @@ export default function CssEditor(): React.JSX.Element {
     <div className="css-editor">
       <h1 className="page-title">Looks &amp; custom CSS</h1>
       <p className="muted">
-        Click ready-made looks to change how the whole wiki looks, and watch the preview on the right. Each one can be taken off again. If you
-        know CSS, “Write CSS” shows it all and lets you change anything. It’s used while reading pages and in an exported website (as
-        custom.css), and it travels with share files. Pages can have their own looks too (in their editor), and Insert → Fancy block adds
-        ready-made banners, boxes and effects inside a page.
+        Click ready-made looks to change how the whole wiki looks, and watch the preview on the right. Each one can be taken off again. If you know
+        CSS, “Write CSS” shows it all and lets you change anything. It’s used while reading pages and in an exported website (as custom.css), and it
+        travels with share files. Pages can have their own looks too (in their editor), and Insert → Fancy block adds ready-made banners, boxes and
+        effects inside a page.
       </p>
       <div className="css-toolbar row gap">
         <label className="check">
@@ -105,6 +138,7 @@ export default function CssEditor(): React.JSX.Element {
         <label className="field inline">
           <span>Preview</span>
           <select value={pageId ?? ''} onChange={(e) => setPageId(e.target.value || null)}>
+            <option value={SAMPLE_ID}>✦ Sample page (one of everything)</option>
             <option value="">All pages list</option>
             {sorted.map((p) => (
               <option key={p.id} value={p.id}>
@@ -145,7 +179,9 @@ export default function CssEditor(): React.JSX.Element {
                 placeholder={EXAMPLE}
                 rows={24}
               />
-              <p className="muted small">Ready-made looks show up here between “✦ look” comments — change them freely, or delete one whole part to take it off.</p>
+              <p className="muted small">
+                Ready-made looks show up here between “✦ look” comments — change them freely, or delete one whole part to take it off.
+              </p>
               {!code && (
                 <button className="link-btn small" onClick={() => (setCode(EXAMPLE), setSaved(false))}>
                   Start from an example
@@ -172,8 +208,8 @@ export default function CssEditor(): React.JSX.Element {
         </table>
         <p className="muted small">
           Colors from Look &amp; settings are available as variables, e.g. <code>var(--accent)</code>, <code>var(--link)</code>,{' '}
-          <code>var(--panel)</code>, <code>var(--text)</code>. If your CSS ever hides something you need, press {kb(',')} to come back to
-          Look &amp; settings, or untick “Use my custom CSS”.
+          <code>var(--panel)</code>, <code>var(--text)</code>. If your CSS ever hides something you need, press {kb(',')} to come back to Look &amp;
+          settings, or untick “Use my custom CSS”.
         </p>
       </details>
     </div>

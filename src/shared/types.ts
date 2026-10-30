@@ -169,6 +169,19 @@ export interface WikiMeta {
   storiesOff?: boolean
   /** What "Export website" includes: the wiki and its stories (default), just the wiki, or just the stories. */
   siteContent?: 'all' | 'wiki' | 'stories'
+  /** More logos besides `logo`, for switching between them (see `mix`). */
+  extraLogos?: string[]
+  /** Just for fun: switch between logos and/or color themes now and then. */
+  mix?: MixSettings
+}
+
+export interface MixSettings {
+  /** Switch between `logo` and `extraLogos`. */
+  logos?: boolean
+  /** Color-theme looks to switch between ('mine' = the wiki's own colors). Needs two or more. */
+  themes?: string[]
+  /** When to switch in the app (an exported website switches on every page it opens). */
+  when?: 'open' | 'page' | 'save'
 }
 
 export interface WikiData {

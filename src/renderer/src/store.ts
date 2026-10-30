@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { Library, Page, WikiMeta } from '@shared/types'
 import { cleanTitle, renameLinks, titleKey } from './lib/wikitext'
+import { mixAfterSave } from './lib/mixUp'
 
 export type SpecialName = 'allpages' | 'categories' | 'recent' | 'templates' | 'settings' | 'trash' | 'css' | 'stories'
 
@@ -71,7 +72,10 @@ export const useStore = create<State>((set, get) => ({
     const library = await api.library()
     set({ library })
     const last = library.lastWikiId && library.wikis.find((w) => w.id === library.lastWikiId)
-    if (last) await get().openWiki(last.id).catch(() => set({ wikiId: null }))
+    if (last)
+      await get()
+        .openWiki(last.id)
+        .catch(() => set({ wikiId: null }))
   },
 
   async refreshLibrary() {
@@ -163,6 +167,7 @@ export const useStore = create<State>((set, get) => ({
       }
     }
     set({ pages: next, dirty: false })
+    if (get().meta) mixAfterSave(get().meta!)
     if (relinked) get().notify(`Updated links on ${relinked} page${relinked === 1 ? '' : 's'}`)
   },
 

@@ -44,6 +44,8 @@
 - **48 fonts built in**, including Google Fonts and **OpenDyslexic**. They work offline and go along when you share or export.
 - **171 ready-made looks** you switch on with a click, with a live preview: color themes (Cozy cottage, Night sky, Neon arcade, Old library, Spooky…), rounded or glowing infoboxes, fancy headings, patterned backgrounds, falling snow, rainbow titles and more.
 - **64 fancy blocks** to insert into pages: banners, notices, navigation boxes, quote cards, chat bubbles, text-message phones, family trees, star ratings, stat bars, timelines, tabs, flip cards, fold-outs… Click their words to change them.
+- A **sample page** with one of everything (infobox, boxes, cards, gallery, table…) to preview looks on, even before your wiki has pages that use them all.
+- **Mix it up**: switch between several logos and color themes each time the wiki opens, on every page, or every time you save, like websites that look a little different on every visit. Exported websites switch too.
 - **Custom CSS and HTML** for anyone who wants full control: for the whole wiki or one page, with a live preview. Scripts are always removed, so a wiki stays safe to share.
 
 ### Stories

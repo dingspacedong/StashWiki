@@ -22,6 +22,7 @@ import QuickCreate from './simple/QuickCreate'
 import ErrorBoundary from './components/ErrorBoundary'
 import { AiPanel, useAi } from './ai/gate'
 import { usePrefs } from './lib/prefs'
+import { shownLogo, useMix, useMixUp, withMixedTheme } from './lib/mixUp'
 
 export default function Shell(): React.JSX.Element {
   const simple = usePrefs((s) => s.simple)
@@ -45,7 +46,12 @@ export default function Shell(): React.JSX.Element {
     (route.kind === 'edit' && simple) ||
     (route.kind === 'special' && ['allpages', 'recent', 'categories', 'stories'].includes(route.name))
   const viewing = route.kind === 'page' || route.kind === 'edit' ? pages[route.id] : undefined
-  const customCss = reading && !meta.customCssOff ? [meta.customCss ?? '', viewing?.customCss ?? ''].filter((c) => c.trim()).join('\n') : ''
+  const wikiId = useStore((s) => s.wikiId)
+  const mix = useMix()
+  useMixUp(meta, wikiId, route)
+  const wikiCss = withMixedTheme(meta, meta.customCss ?? '', mix.theme)
+  const customCss = reading && !meta.customCssOff ? [wikiCss, viewing?.customCss ?? ''].filter((c) => c.trim()).join('\n') : ''
+  const logo = shownLogo(meta, mix.logo)
   const aiOn = useAi((s) => !!s.settings?.enabled)
   const aiOpen = useAi((s) => s.open)
 
@@ -86,7 +92,7 @@ export default function Shell(): React.JSX.Element {
           </button>
         </div>
         <button className="wiki-brand" onClick={goMain} title="Main page">
-          {meta.logo ? <img src={imgUrl(meta.logo)} alt="" /> : <span className="brand-dot">{meta.name.slice(0, 1)}</span>}
+          {logo ? <img src={imgUrl(logo)} alt="" /> : <span className="brand-dot">{meta.name.slice(0, 1)}</span>}
           <span>{meta.name}</span>
         </button>
         <SearchBox />
@@ -189,7 +195,11 @@ function RouteView({ route }: { route: Route }): React.JSX.Element {
       const page = useStore.getState().pages[route.id]
       if (page?.story) return <StoryEditor key={route.id} id={route.id} />
       if (page?.chapter) return <ChapterEditor key={route.id} id={route.id} />
-      return usePrefs.getState().simple ? <SimplePage key={route.id} id={route.id} /> : <PageEditor key={route.id} id={route.id} draft={route.draft} />
+      return usePrefs.getState().simple ? (
+        <SimplePage key={route.id} id={route.id} />
+      ) : (
+        <PageEditor key={route.id} id={route.id} draft={route.draft} />
+      )
     }
     case 'new':
       return <NewPage key={(route.title ?? '') + (route.templateId ?? '*')} initialTitle={route.title ?? ''} templateId={route.templateId} />
