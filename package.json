@@ -1,7 +1,7 @@
 {
   "name": "stashwiki",
   "productName": "StashWiki",
-  "version": "0.10.1",
+  "version": "0.11.0",
   "description": "A private, offline wiki builder",
   "author": "StashWiki",
   "license": "MIT",

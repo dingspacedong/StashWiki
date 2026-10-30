@@ -30,7 +30,7 @@ a:hover { text-decoration: underline; }
 .search-drop small { display: block; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .menu-btn { display: none; border: 0; background: none; color: inherit; font-size: 22px; cursor: pointer; }
 
-.layout { display: flex; align-items: flex-start; max-width: 1400px; margin: 0 auto; }
+.layout { display: flex; align-items: flex-start; max-width: 1400px; margin: 0 auto; font-family: var(--font-body); }
 .sidebar { width: 190px; flex: none; padding: 20px 10px; position: sticky; top: 0; align-self: stretch; background: var(--sidebar-bg, transparent); }
 .nav-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); padding: 0 10px 4px; font-weight: 600; }
 .sidebar a { display: block; padding: 5px 10px; border-radius: 6px; }

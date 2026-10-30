@@ -125,7 +125,8 @@ img { max-width: 100%; }
   font-weight: 600;
 }
 
-.layout { display: flex; flex: 1; min-height: 0; }
+/* Font set here too, so a look that changes --font-body on .layout (the color themes do) reaches the page. */
+.layout { display: flex; flex: 1; min-height: 0; font-family: var(--font-body); }
 .sidebar {
   width: 196px;
   flex: none;
