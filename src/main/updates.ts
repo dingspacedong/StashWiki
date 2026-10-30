@@ -24,7 +24,10 @@ let lastAsset: { name: string; url: string; size: number } | null = null
 
 /** What kind of copy this is, which decides how it updates. */
 function mode(): UpdateMode {
-  if (!app.isPackaged) return existsSync(join(app.getAppPath(), '.git')) ? 'source' : 'manual'
+  // Not app.isPackaged: it only checks the program's name, and the Mac app keeps Electron's own name
+  // ("Electron"), so it would look unpacked there. A copy run from the source code is started as
+  // `electron .`, which is what process.defaultApp means.
+  if (process.defaultApp) return existsSync(join(app.getAppPath(), '.git')) ? 'source' : 'manual'
   if (process.platform === 'win32') return process.env.PORTABLE_EXECUTABLE_FILE ? 'portable' : 'setup'
   if (process.platform === 'darwin') return 'mac'
   return 'manual'
