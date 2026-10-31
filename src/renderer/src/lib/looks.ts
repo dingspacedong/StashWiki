@@ -1618,6 +1618,28 @@ addLooks('color-theme', [
         'font-body': '"EB Garamond", serif',
         'font-heading': '"Uncial Antiqua", serif'
       }) + '\n.infobox, .content-card { box-shadow: 0 0 24px rgb(242 184 75 / 0.12); }'
+  },
+  {
+    id: 'deep-sea',
+    name: 'Deep sea',
+    hint: 'Dark water with glowing jellyfish colors',
+    css:
+      theme({
+        bg: '#03131f',
+        surface: '#071e2c',
+        panel: '#0b2a3b',
+        text: '#d7f3f7',
+        muted: '#7fb2bf',
+        link: '#5ff2e0',
+        redlink: '#ff7fae',
+        accent: '#0a3d55',
+        'accent-text': '#9ff7ec',
+        border: '#16465c',
+        'font-body': '"Nunito", sans-serif',
+        'font-heading': '"Fredoka", sans-serif'
+      }) +
+      '\n.backdrop { background-image: radial-gradient(circle at 20% 30%, rgb(95 242 224 / 0.14), transparent 40%), radial-gradient(circle at 80% 75%, rgb(255 127 174 / 0.12), transparent 45%), linear-gradient(180deg, #06263a 0%, #03131f 70%); }' +
+      '\n.infobox, .content-card { box-shadow: 0 0 22px rgb(95 242 224 / 0.1); }'
   }
 ])
 
