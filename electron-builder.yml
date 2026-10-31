@@ -21,6 +21,7 @@ nsis:
   shortcutName: StashWiki
   artifactName: StashWiki-Setup-${version}.exe
   deleteAppDataOnUninstall: false
+  include: build/installer.nsh
 portable:
   artifactName: StashWiki-Portable-${version}.exe
 fileAssociations:

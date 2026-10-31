@@ -164,8 +164,10 @@ export async function install(progress: (p: UpdateProgress) => void): Promise<vo
 
   if (m === 'setup') {
     progress({ stage: 'install', message: 'Installing… StashWiki will reopen by itself.' })
-    // The installer runs on its own once StashWiki closes, then starts the new version.
-    spawn(file, ['/S', '--force-run'], { detached: true, stdio: 'ignore' }).unref()
+    // The installer runs on its own once StashWiki closes, then starts the new version. --updated tells it to
+    // keep the existing shortcuts: without it, the old version's uninstaller deletes and recreates them,
+    // which also unpins StashWiki from the taskbar.
+    spawn(file, ['/S', '--updated', '--force-run'], { detached: true, stdio: 'ignore' }).unref()
     quitSoon()
     return
   }
