@@ -82,7 +82,7 @@ export const CSS_HINTS: [string, string][] = [
   ['.hatnote, .top-quote', 'notes and the quote at the top'],
   ['.callout', 'note/tip/warning/spoiler boxes ([data-callout="tip"] for one kind)'],
   ['.pc-card', 'page cards (.pc-img, .pc-name, .pc-tag)'],
-  ['.gallery', 'galleries (.g-item for each picture)'],
+  ['.gallery', 'galleries (.g-item for each picture, .g-spoiler for hidden ones, .gallery-cover on spoiler galleries)'],
   ['.catlinks', 'the categories bar at the bottom'],
   ['.html-block', 'your HTML blocks'],
   ['a.wikilink, a.new', 'links to pages, and red links']

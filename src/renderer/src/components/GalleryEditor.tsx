@@ -110,6 +110,10 @@ function GalleryCard({
           <input type="checkbox" checked={gallery.autoCollapse} onChange={(e) => onChange({ autoCollapse: e.target.checked })} />
           Start collapsed to one row
         </label>
+        <label className="check" title="Readers see a cover instead of the pictures until they click it">
+          <input type="checkbox" checked={!!gallery.spoiler} onChange={(e) => onChange({ spoiler: e.target.checked })} />
+          Whole gallery is a spoiler
+        </label>
         <span className="grow" />
         <button className="icon-btn" title="Move gallery up" disabled={first} onClick={() => onMove(-1)}>
           ↑
@@ -123,7 +127,7 @@ function GalleryCard({
       </div>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={gallery.images.map((i) => i.id)} strategy={rectSortingStrategy}>
-          <div className="ge-grid">
+          <div className={'ge-grid' + (gallery.spoiler ? ' all-spoilers' : '')}>
             <button className="ge-add" onClick={() => void add()}>
               <span>+</span>
               Add images
@@ -139,6 +143,7 @@ function GalleryCard({
       {editImage && (
         <ImageDetails
           image={editImage}
+          gallerySpoiler={!!gallery.spoiler}
           onClose={() => setEditing(null)}
           onChange={(patch) => onChange({ images: gallery.images.map((i) => (i.id === editImage.id ? { ...i, ...patch } : i)) })}
           onRemove={() => {
@@ -157,6 +162,7 @@ function SortableThumb({ image, onClick }: { image: GalleryImage; onClick: () =>
   return (
     <div ref={setNodeRef} style={style} className={'ge-thumb' + (isDragging ? ' dragging' : '')} {...attributes} {...listeners} onClick={onClick}>
       <img src={imgUrl(image.file)} alt="" draggable={false} />
+      {image.spoiler && <span className="ge-spoiler">Spoiler</span>}
       <div className={'ge-caption' + (image.caption ? '' : ' empty')}>{image.caption || 'Add description'}</div>
     </div>
   )
@@ -164,11 +170,13 @@ function SortableThumb({ image, onClick }: { image: GalleryImage; onClick: () =>
 
 function ImageDetails({
   image,
+  gallerySpoiler,
   onChange,
   onClose,
   onRemove
 }: {
   image: GalleryImage
+  gallerySpoiler: boolean
   onChange: (patch: Partial<GalleryImage>) => void
   onClose: () => void
   onRemove: () => void
@@ -196,6 +204,11 @@ function ImageDetails({
               onChange={(e) => onChange({ source: e.target.value })}
             />
           </label>
+          <label className="check" title={gallerySpoiler ? 'The whole gallery is already a spoiler' : undefined}>
+            <input type="checkbox" checked={gallerySpoiler || !!image.spoiler} disabled={gallerySpoiler} onChange={(e) => onChange({ spoiler: e.target.checked })} />
+            Spoiler: blurred until a reader clicks it
+          </label>
+          {gallerySpoiler && <div className="hint">The whole gallery is already hidden as a spoiler.</div>}
           <div className="row gap">
             <button className="btn" onClick={onClose}>
               Done

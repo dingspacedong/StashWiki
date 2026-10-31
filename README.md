@@ -32,7 +32,7 @@
 
 ### Wiki pages
 - **Infobox templates** for Characters, Locations, Episodes, Movies and Games — or make your own. Drag fields to reorder them, and rename, add or remove fields on just one page.
-- **Infobox picture tabs** (like *Card / Wish / In-Game*), **galleries** with captions, credits and a lightbox, and pictures you can paste or drag straight in.
+- **Infobox picture tabs** (like *Card / Wish / In-Game*), **galleries** with captions, credits and a lightbox (mark single pictures or a whole gallery as spoilers), and pictures you can paste or drag straight in.
 - **`[[Links]]` between pages**, with red links for pages that don't exist yet. Renaming a page updates every link to it.
 - **Categories**, **search**, **recent changes**, **what links here**, **random page**.
 - **Page history**: every page keeps earlier versions you can look at and restore. Deleted pages go to the **Trash**.

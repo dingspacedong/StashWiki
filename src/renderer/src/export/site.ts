@@ -254,18 +254,27 @@ ${content}
     return `<aside class="infobox" style="--ib-head: ${escapeHtml(head)}; --ib-head-text: ${escapeHtml(headText)}"><div class="ib-title">${escapeHtml(p.title)}</div>${rows.join('')}</aside>`
   }
 
+  // Spoilers: a whole gallery sits under a cover until clicked; otherwise each spoiler picture is blurred on its own.
   const gallery = (g: Gallery): string =>
-    `<section class="gallery" data-collapse="${g.autoCollapse ? 1 : 0}">` +
-    `<div class="gallery-head"><h2>${escapeHtml(g.title || 'Gallery')}</h2><span class="gallery-count">${g.images.length} image${g.images.length === 1 ? '' : 's'}</span><button class="gallery-toggle" hidden>Show all</button></div>` +
-    `<div class="gallery-grid" data-group>` +
+    `<section class="gallery${g.spoiler ? ' spoiler-gallery covered' : ''}" data-collapse="${g.autoCollapse ? 1 : 0}">` +
+    `<div class="gallery-head"><h2>${escapeHtml(g.title || 'Gallery')}</h2><span class="gallery-count">${g.images.length} image${g.images.length === 1 ? '' : 's'}</span>` +
+    (g.spoiler ? `<button class="gallery-rehide" hidden>Hide spoilers</button>` : '') +
+    `<button class="gallery-toggle" hidden>Show all</button></div>` +
+    `<div class="gallery-body"><div class="gallery-grid" data-group${g.spoiler ? ' inert' : ''}>` +
     g.images
-      .map(
-        (img) =>
-          `<figure class="g-item" data-lb><a class="g-thumb" href="images/${escapeHtml(img.file)}"><img src="${imgUrl(img.file)}" alt="${escapeHtml(img.caption)}"></a>` +
+      .map((img) => {
+        const blur = !g.spoiler && img.spoiler
+        return (
+          `<figure class="g-item${blur ? ' g-spoiler' : ''}" data-lb><a class="g-thumb" href="images/${escapeHtml(img.file)}"${blur ? ' title="Spoiler: click to show"' : ''}><img src="${imgUrl(img.file)}" alt="${blur ? 'Spoiler' : escapeHtml(img.caption)}"></a>` +
           (img.caption ? `<figcaption>${inline(img.caption)}</figcaption>` : '') +
           `<div class="lb-data"><div class="lb-caption">${img.caption ? inline(img.caption) : ''}</div><div class="lb-src">${img.source ? inline(img.source) : ''}</div></div></figure>`
-      )
+        )
+      })
       .join('') +
+    `</div>` +
+    (g.spoiler
+      ? `<button class="gallery-cover"><strong>Spoilers</strong><span>Click to show ${g.images.length === 1 ? 'this picture' : `these ${g.images.length} pictures`}</span></button>`
+      : '') +
     `</div></section>`
 
   const topMatter = (p: Page): string => {

@@ -91,7 +91,7 @@ export function samplePage(meta: WikiMeta): Page {
         images: [
           { id: 'g1', file: PIC.portrait, caption: 'A caption', source: '' },
           { id: 'g2', file: PIC.landscape, caption: 'Another caption', source: '' },
-          { id: 'g3', file: PIC.house, caption: 'A third picture', source: '' }
+          { id: 'g3', file: PIC.house, caption: 'A spoiler picture', source: '', spoiler: true }
         ]
       }
     ],

@@ -7,6 +7,10 @@ export interface LightboxItem {
   file: string
   caption: string
   source: string
+  /** Still hidden: shown blurred until clicked. */
+  spoiler?: boolean
+  /** Also reveal it where it came from (the gallery thumbnail). */
+  reveal?: () => void
 }
 
 export const useLightbox = create<{ items: LightboxItem[]; index: number }>(() => ({ items: [], index: 0 }))
@@ -49,10 +53,17 @@ export default function Lightbox(): React.JSX.Element | null {
         </>
       )}
       <figure className="lb-figure">
-        <img src={imgUrl(item.file)} alt={item.caption} />
+        {item.spoiler ? (
+          <button className="lb-spoiler" onClick={() => revealCurrent()} title="Click to show">
+            <img src={imgUrl(item.file)} alt="Spoiler" />
+            <span>Spoiler: click to show</span>
+          </button>
+        ) : (
+          <img src={imgUrl(item.file)} alt={item.caption} />
+        )}
         {(item.caption || item.source || items.length > 1) && (
           <figcaption>
-            {item.caption && <RichInline className="lb-caption" text={item.caption} />}
+            {item.caption && !item.spoiler && <RichInline className="lb-caption" text={item.caption} />}
             {item.source && (
               <div className="lb-source">
                 Source: <RichInline text={item.source} />
@@ -68,6 +79,12 @@ export default function Lightbox(): React.JSX.Element | null {
       </figure>
     </div>
   )
+}
+
+function revealCurrent(): void {
+  const { items, index } = useLightbox.getState()
+  items[index]?.reveal?.()
+  useLightbox.setState({ items: items.map((it, i) => (i === index ? { ...it, spoiler: false } : it)) })
 }
 
 function step(d: number): void {

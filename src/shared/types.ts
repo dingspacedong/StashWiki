@@ -61,6 +61,8 @@ export interface GalleryImage {
   file: string
   caption: string
   source: string
+  /** Blurred until a reader clicks it. */
+  spoiler?: boolean
 }
 
 export interface Gallery {
@@ -68,6 +70,8 @@ export interface Gallery {
   title: string
   /** Collapse to a single row when the page is opened. */
   autoCollapse: boolean
+  /** The whole gallery stays covered until a reader clicks it. */
+  spoiler?: boolean
   images: GalleryImage[]
 }
 

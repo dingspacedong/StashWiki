@@ -110,6 +110,23 @@ a:hover { text-decoration: underline; }
 .g-thumb:hover img { transform: scale(1.04); }
 .g-item figcaption { font-size: 12.5px; color: var(--muted); text-align: center; margin-top: 5px; line-height: 1.35; }
 .lb-data { display: none; }
+/* spoiler pictures and galleries */
+.g-spoiler .g-thumb { position: relative; cursor: pointer; }
+.g-spoiler .g-thumb img, .g-spoiler .g-thumb:hover img { filter: blur(16px) brightness(0.8); transform: scale(1.2); }
+.g-spoiler .g-thumb::after { content: "Spoiler"; position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; text-shadow: 0 1px 3px rgb(0 0 0 / 0.7); }
+.g-spoiler figcaption { filter: blur(5px); user-select: none; }
+.gallery-body { position: relative; }
+.gallery.covered .gallery-body { min-height: 120px; overflow: hidden; border-radius: 8px; }
+.gallery.covered .gallery-grid { filter: blur(18px); opacity: 0.5; pointer-events: none; user-select: none; }
+.gallery-cover { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; width: 100%; border: 1px dashed var(--border); border-radius: 8px; background: color-mix(in srgb, var(--panel) 55%, transparent); color: var(--text); font: inherit; cursor: pointer; }
+.gallery-cover strong { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; }
+.gallery-cover span { font-size: 13px; color: var(--muted); }
+.gallery-cover:hover strong { color: var(--link); }
+.gallery:not(.covered) .gallery-cover { display: none; }
+.gallery-rehide { margin-left: auto; border: 0; background: none; color: var(--link); font: inherit; font-size: 13px; cursor: pointer; }
+.gallery-rehide + .gallery-toggle { margin-left: 0; }
+.lightbox.lb-hidden .lb-figure img { filter: blur(30px) brightness(0.7); clip-path: inset(0 round 4px); cursor: pointer; }
+.lb-spoiler-note { font-weight: 700; }
 /* note / tip / warning / spoiler boxes */
 .callout { position: relative; margin: 12px 0; padding: 10px 14px 10px 16px; border-radius: 6px; border: 1px solid var(--border); border-left-width: 5px; background: var(--panel); }
 .callout::before { display: block; font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 2px; }
@@ -268,18 +285,29 @@ export const SITE_JS = `/* Made with StashWiki: search, random page, picture vie
   });
 
   // Galleries that start as one row
-  document.querySelectorAll('.gallery[data-collapse="1"]').forEach(function (g) {
-    var grid = g.querySelector('.gallery-grid'), btn = g.querySelector('.gallery-toggle'), open = false;
+  // (and spoiler galleries, which stay one row while covered)
+  document.querySelectorAll('.gallery[data-collapse="1"], .gallery.spoiler-gallery').forEach(function (g) {
+    var grid = g.querySelector('.gallery-grid'), btn = g.querySelector('.gallery-toggle'), open = g.getAttribute('data-collapse') !== '1';
+    var cover = g.querySelector('.gallery-cover'), rehide = g.querySelector('.gallery-rehide');
     function measure() {
       var kids = grid.children;
       if (!kids.length) return;
-      var top = kids[0].offsetTop, h = 0, hidden = 0;
+      var top = kids[0].offsetTop, h = 0, hidden = 0, covered = g.classList.contains('covered');
       for (var i = 0; i < kids.length; i++) { if (kids[i].offsetTop <= top + 2) h = Math.max(h, kids[i].offsetHeight); else hidden++; }
-      btn.hidden = hidden === 0;
-      grid.classList.toggle('collapsed', !open && hidden > 0);
-      grid.style.maxHeight = !open && hidden > 0 ? h + 'px' : '';
+      var short = (!open || covered) && hidden > 0;
+      btn.hidden = hidden === 0 || covered || g.getAttribute('data-collapse') !== '1';
+      grid.classList.toggle('collapsed', short);
+      grid.style.maxHeight = short ? h + 'px' : '';
       btn.textContent = open ? 'Show less' : 'Show all ' + kids.length;
     }
+    function cover_(on) {
+      g.classList.toggle('covered', on);
+      if (on) grid.setAttribute('inert', ''); else grid.removeAttribute('inert');
+      if (rehide) rehide.hidden = on;
+      measure();
+    }
+    if (cover) cover.addEventListener('click', function () { cover_(false); });
+    if (rehide) rehide.addEventListener('click', function () { cover_(true); });
     btn.addEventListener('click', function () { open = !open; measure(); });
     window.addEventListener('resize', measure);
     window.addEventListener('load', measure);
@@ -291,15 +319,18 @@ export const SITE_JS = `/* Made with StashWiki: search, random page, picture vie
   if (!lb) return;
   var lbImg = lb.querySelector('img'), lbCap = lb.querySelector('figcaption'), group = [], at = 0;
   function render() {
-    var it = group[at];
+    var it = group[at], hide = !!(it.fig && it.fig.classList.contains('g-spoiler'));
+    lb.classList.toggle('lb-hidden', hide);
     lbImg.src = it.src;
-    lbCap.innerHTML = (it.caption || '') + (it.source ? '<div class="lb-source">Source: ' + it.source + '</div>' : '') +
+    lbCap.innerHTML = (hide ? '<div class="lb-spoiler-note">Spoiler: click the picture to show</div>' : (it.caption || '')) +
+      (it.source ? '<div class="lb-source">Source: ' + it.source + '</div>' : '') +
       (group.length > 1 ? '<div class="lb-count">' + (at + 1) + ' / ' + group.length + '</div>' : '');
     lb.querySelectorAll('.lb-nav').forEach(function (b) { b.hidden = group.length < 2; });
   }
   function item(el) {
     var data = el.closest('[data-lb]') ? el.closest('[data-lb]').querySelector('.lb-data') : null;
     return {
+      fig: el.closest('.g-item'),
       src: el.getAttribute('data-full') || el.src,
       caption: data ? (data.querySelector('.lb-caption') || {}).innerHTML || '' : esc(el.alt || ''),
       source: data ? (data.querySelector('.lb-src') || {}).innerHTML || '' : ''
@@ -308,6 +339,8 @@ export const SITE_JS = `/* Made with StashWiki: search, random page, picture vie
   document.addEventListener('click', function (e) {
     var spoiler = e.target.closest('[data-callout="spoiler"]');
     if (spoiler && !e.target.closest('a')) { spoiler.classList.toggle('revealed'); return; }
+    var hiddenPic = e.target.closest('.g-spoiler .g-thumb');
+    if (hiddenPic) { e.preventDefault(); hiddenPic.closest('.g-item').classList.remove('g-spoiler'); return; }
     var img = e.target.closest('.g-thumb img, .ib-image img, .prose img');
     if (!img || img.closest('.pc-card')) return;
     e.preventDefault();
@@ -323,6 +356,10 @@ export const SITE_JS = `/* Made with StashWiki: search, random page, picture vie
   lb.querySelector('.lb-next').addEventListener('click', function () { step(1); });
   lb.querySelector('.lb-close').addEventListener('click', function () { lb.hidden = true; });
   lb.addEventListener('click', function (e) { if (e.target === lb) lb.hidden = true; });
+  lbImg.addEventListener('click', function () {
+    var it = group[at];
+    if (it && it.fig && it.fig.classList.contains('g-spoiler')) { it.fig.classList.remove('g-spoiler'); render(); }
+  });
   document.addEventListener('keydown', function (e) {
     if (lb.hidden) return;
     if (e.key === 'Escape') lb.hidden = true;
