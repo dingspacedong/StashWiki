@@ -21,15 +21,37 @@ export interface TocEntry {
   level: number
 }
 
-/** `cards` draws a page-cards block from its stored JSON (the app and the website each supply their own). */
+/**
+ * `cards` draws a page-cards block from its stored JSON, and `navbox` a nav box from its id (the app and the
+ * website each supply their own).
+ */
 export function renderBody(
   html: string,
   exists: (title: string) => boolean,
-  cards?: (json: string) => string
+  cards?: (json: string) => string,
+  navbox?: (id: string) => string
 ): { html: string; toc: TocEntry[] } {
   const clean = DOMPurify.sanitize(html, PURIFY) as string
   const doc = new DOMParser().parseFromString(`<div id="root">${clean}</div>`, 'text/html')
   const root = doc.getElementById('root')!
+
+  // Pictures with a caption: a figure (carrying the picture's position and size) with the caption under it.
+  for (const img of root.querySelectorAll('img[data-caption]')) {
+    const caption = img.getAttribute('data-caption')!.trim()
+    if (!caption || img.closest('div[data-html]')) continue
+    const fig = doc.createElement('figure')
+    fig.className = 'img-fig'
+    for (const a of ['data-align', 'data-size']) {
+      if (img.hasAttribute(a)) fig.setAttribute(a, img.getAttribute(a)!)
+      img.removeAttribute(a)
+    }
+    img.setAttribute('alt', caption)
+    img.removeAttribute('data-caption')
+    const cap = doc.createElement('figcaption')
+    cap.textContent = caption
+    img.replaceWith(fig)
+    fig.append(img, cap)
+  }
 
   // HTML blocks are set aside and put back at the end, so nothing below rewrites what their author wrote.
   const blocks: string[] = []
@@ -42,6 +64,11 @@ export function renderBody(
 
   for (const el of root.querySelectorAll('div[data-cards]')) {
     if (cards) el.outerHTML = cards(el.getAttribute('data-cards') ?? '')
+    else el.remove()
+  }
+  for (const el of root.querySelectorAll('div[data-navbox]')) {
+    const box = navbox?.(el.getAttribute('data-navbox') ?? '') ?? ''
+    if (box) el.outerHTML = box
     else el.remove()
   }
 

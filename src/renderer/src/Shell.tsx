@@ -20,6 +20,8 @@ import { BACK_LABEL, FORWARD_LABEL, isMac } from './lib/platform'
 import SimplePage from './simple/SimplePage'
 import QuickCreate from './simple/QuickCreate'
 import ErrorBoundary from './components/ErrorBoundary'
+import SidebarSections from './components/SidebarNav'
+import NavigationView from './views/NavigationView'
 import { AiPanel, useAi } from './ai/gate'
 import { usePrefs } from './lib/prefs'
 import { shownLogo, useMix, useMixUp, withMixedTheme } from './lib/mixUp'
@@ -136,9 +138,11 @@ export default function Shell(): React.JSX.Element {
               Random page
             </button>
           </div>
+          <SidebarSections />
           <div className="nav-group">
             <div className="nav-title">Wiki tools</div>
             {nav({ kind: 'special', name: 'templates' }, 'Templates', special('templates'))}
+            {nav({ kind: 'special', name: 'navigation' }, 'Navigation', special('navigation'))}
             {nav({ kind: 'special', name: 'settings' }, 'Look & settings', special('settings'))}
             {nav({ kind: 'special', name: 'trash' }, 'Trash', special('trash'))}
             <button className="nav-link" onClick={() => useStore.getState().closeWiki()}>
@@ -151,7 +155,7 @@ export default function Shell(): React.JSX.Element {
           </div>
         </aside>
         <main className="content-scroll">
-          <div className="content-card">
+          <div className={'content-card' + (reading || route.kind === 'edit' ? ' zoomed' : '')}>
             <RouteView route={route} />
           </div>
         </main>
@@ -229,6 +233,8 @@ function RouteView({ route }: { route: Route }): React.JSX.Element {
           return <CssEditor />
         case 'stories':
           return <StoriesView />
+        case 'navigation':
+          return <NavigationView />
       }
   }
 }
@@ -258,7 +264,8 @@ function routeTitle(route: Route, pages: Record<string, { title: string }>): str
         settings: 'Look & settings',
         trash: 'Trash',
         css: 'Looks & custom CSS',
-        stories: 'Stories'
+        stories: 'Stories',
+        navigation: 'Navigation'
       }[route.name]
   }
 }

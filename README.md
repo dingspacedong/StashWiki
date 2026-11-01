@@ -32,21 +32,24 @@
 
 ### Wiki pages
 - **Infobox templates** for Characters, Locations, Episodes, Movies and Games — or make your own. Drag fields to reorder them, and rename, add or remove fields on just one page.
-- **Infobox picture tabs** (like *Card / Wish / In-Game*), **galleries** with captions, credits and a lightbox (mark single pictures or a whole gallery as spoilers), and pictures you can paste or drag straight in.
+- **Infobox picture tabs** (like *Card / Wish / In-Game*), **galleries** with captions, credits and a lightbox (mark single pictures or a whole gallery as spoilers), and pictures you can paste or drag straight in, with captions.
 - **`[[Links]]` between pages**, with red links for pages that don't exist yet. Renaming a page updates every link to it.
 - **Categories**, **search**, **recent changes**, **what links here**, **random page**.
 - **Page history**: every page keeps earlier versions you can look at and restore. Deleted pages go to the **Trash**.
 - An **introduction** above an automatic **contents box**, **notes at the top** ("For the pup, see …") and an **opening quote**.
 - **Note, tip, warning and spoiler boxes** (spoilers stay blurred until clicked) and **page cards**: picture links to pages, like a character roster.
+- **Nav boxes** (the box of related links at the bottom of a page): set one up once and show it on as many pages as you like, or by itself on every page in a category. Rows can list a category's pages automatically, and changing a box changes it everywhere.
+- **Your own sidebar sections**: headers with links to pages, categories or websites, with fold-out sub-links (a category can list its pages under it).
 
 ### Make it look like *your* wiki
 - **Colors and fonts** for the whole wiki or a single page, a **background picture** (fill or tile), and a see-through **sidebar color**.
+- A **text size** setting, because some fonts look small at the same size.
 - **48 fonts built in**, including Google Fonts and **OpenDyslexic**. They work offline and go along when you share or export.
 - **204 ready-made looks** you switch on with a click, with a live preview: 27 color themes (Cozy cottage, Night sky, Galaxy, Deep sea, Retro computer, Pirate map, Cherry blossom, Dragon’s hoard…), rounded or glowing infoboxes, fancy headings, patterned backgrounds, falling snow, confetti, floating hearts, emoji mouse pointers, rainbow titles and more.
-- **64 fancy blocks** to insert into pages: banners, notices, navigation boxes, quote cards, chat bubbles, text-message phones, family trees, star ratings, stat bars, timelines, tabs, flip cards, fold-outs… Click their words to change them.
+- **64 fancy blocks** to insert into pages: banners, notices, navigation boxes, quote cards, chat bubbles, text-message phones, family trees, star ratings, stat bars, timelines, tabs, flip cards, fold-outs… Click their words to change them, and save your own as **My blocks** to reuse.
 - A **sample page** with one of everything (infobox, boxes, cards, gallery, table…) to preview looks on, even before your wiki has pages that use them all.
 - **Mix it up**: switch between several logos and color themes each time the wiki opens, on every page, or every time you save, like websites that look a little different on every visit. Exported websites switch too.
-- **Custom CSS and HTML** for anyone who wants full control: for the whole wiki or one page, with a live preview. Scripts are always removed, so a wiki stays safe to share.
+- **Custom CSS and HTML** for anyone who wants full control: for the whole wiki or one page, with a live preview (computer or phone width) and **Inspect element** to see what styles anything. Scripts are always removed, so a wiki stays safe to share.
 
 ### Stories
 - Write **fanfic and other stories** right inside your wiki, with chapters. Switch Stories off for any wiki that doesn't need them.

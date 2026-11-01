@@ -101,7 +101,10 @@ async function createWindow(): Promise<void> {
     if (items.length) items.push({ type: 'separator' })
     if (params.isEditable) items.push({ role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' })
     else if (params.selectionText) items.push({ role: 'copy' })
-    if (items.length) Menu.buildFromTemplate(items).popup()
+    // For writing custom CSS: see which classes and styles something has (works inside the looks preview too).
+    if (items.length) items.push({ type: 'separator' })
+    items.push({ label: 'Inspect element', click: () => win?.webContents.inspectElement(params.x, params.y) })
+    Menu.buildFromTemplate(items).popup()
   })
 
   if (devUrl) await win.loadURL(devUrl)
@@ -186,6 +189,7 @@ function registerIpc(): void {
   ipcMain.handle('showPath', async (_e, path: string) => {
     if (share.exportedPaths.has(path)) await shell.openPath(path)
   })
+  ipcMain.handle('openInspector', (e) => e.sender.openDevTools({ mode: 'right' }))
   ipcMain.handle('openExternal', async (_e, url: string) => {
     if (/^https?:\/\//i.test(url)) await shell.openExternal(url)
   })

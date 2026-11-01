@@ -26,7 +26,8 @@ export function themeVars(base: Theme, override: PageTheme = {}): Record<string,
     '--bg-size': t.backgroundMode === 'tile' ? 'auto' : 'cover',
     '--bg-repeat': t.backgroundMode === 'tile' ? 'repeat' : 'no-repeat',
     '--bg-position': t.backgroundMode === 'tile' ? 'top left' : 'center',
-    '--sidebar-bg': sidebarBackground(t)
+    '--sidebar-bg': sidebarBackground(t),
+    '--zoom': String(Math.min(200, Math.max(50, Number(t.textSize) || 100)) / 100)
   }
 }
 

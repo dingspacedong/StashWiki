@@ -83,6 +83,8 @@ export const CSS_HINTS: [string, string][] = [
   ['.callout', 'note/tip/warning/spoiler boxes ([data-callout="tip"] for one kind)'],
   ['.pc-card', 'page cards (.pc-img, .pc-name, .pc-tag)'],
   ['.gallery', 'galleries (.g-item for each picture, .g-spoiler for hidden ones, .gallery-cover on spoiler galleries)'],
+  ['.navbox', 'nav boxes (.nb-title, .nb-label, .nb-links)'],
+  ['.img-fig', 'pictures with a caption (figcaption for the caption)'],
   ['.catlinks', 'the categories bar at the bottom'],
   ['.html-block', 'your HTML blocks'],
   ['a.wikilink, a.new', 'links to pages, and red links']

@@ -83,7 +83,7 @@ export default function ChapterView({ page }: { page: Page }): React.JSX.Element
   const onBodyClick = (e: React.MouseEvent): void => {
     const spoiler = (e.target as HTMLElement).closest('div[data-callout="spoiler"]')
     if (spoiler && !(e.target as HTMLElement).closest('a')) return void spoiler.classList.toggle('revealed')
-    const img = (e.target as HTMLElement).closest('.prose > img, .prose p img')
+    const img = (e.target as HTMLElement).closest('.prose > img, .prose p img, .prose .img-fig img')
     if (img) {
       const file = decodeURIComponent(img.getAttribute('src')?.split('/images/')[1] ?? '')
       if (file) return void openLightbox([{ file, caption: img.getAttribute('alt') ?? '', source: '' }], 0)

@@ -3,7 +3,7 @@ import type { Library, Page, WikiMeta } from '@shared/types'
 import { cleanTitle, renameLinks, titleKey } from './lib/wikitext'
 import { mixAfterSave } from './lib/mixUp'
 
-export type SpecialName = 'allpages' | 'categories' | 'recent' | 'templates' | 'settings' | 'trash' | 'css' | 'stories'
+export type SpecialName = 'allpages' | 'categories' | 'recent' | 'templates' | 'settings' | 'trash' | 'css' | 'stories' | 'navigation'
 
 export type Route =
   | { kind: 'page'; id: string }

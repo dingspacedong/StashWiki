@@ -13,10 +13,11 @@ import { Placeholder } from '@tiptap/extensions'
 import { imgUrl } from '../lib/theme'
 import { cleanTitle, titleKey } from '../lib/wikitext'
 import { Dropdown } from './ui'
-import { CALLOUT_LABELS, Callout, PageCards, type CalloutKind } from './editorBlocks'
+import { CALLOUT_LABELS, Callout, NavboxBlock, PageCards, type CalloutKind } from './editorBlocks'
 import { HtmlBlock } from './htmlBlock'
 import { emptyCards } from '../lib/cards'
 import { isMac, kb } from '../lib/platform'
+import { useStore } from '../store'
 
 // ---------- extensions ----------
 
@@ -107,6 +108,40 @@ const WikiImage = Image.extend({
         default: 'medium',
         parseHTML: (el) => el.getAttribute('data-size') || 'medium',
         renderHTML: (attrs) => ({ 'data-size': attrs.size })
+      },
+      caption: {
+        default: '',
+        parseHTML: (el) => el.getAttribute('data-caption') || '',
+        renderHTML: (attrs) => (attrs.caption ? { 'data-caption': attrs.caption } : {})
+      }
+    }
+  },
+  // Shown with its caption underneath while editing (reading pages wrap captioned pictures the same way).
+  addNodeView() {
+    return ({ node }) => {
+      const dom = document.createElement('div')
+      dom.className = 'img-fig ed-img'
+      const img = document.createElement('img')
+      const cap = document.createElement('div')
+      cap.className = 'ed-img-cap'
+      dom.append(img, cap)
+      const show = (n: typeof node): void => {
+        img.src = n.attrs.src
+        dom.dataset.align = n.attrs.align
+        dom.dataset.size = n.attrs.size
+        cap.textContent = n.attrs.caption || ''
+        cap.hidden = !n.attrs.caption
+      }
+      show(node)
+      return {
+        dom,
+        update: (n) => {
+          if (n.type.name !== 'image') return false
+          show(n)
+          return true
+        },
+        selectNode: () => dom.classList.add('ProseMirror-selectednode'),
+        deselectNode: () => dom.classList.remove('ProseMirror-selectednode')
       }
     }
   }
@@ -155,6 +190,7 @@ export default function RichEditor({ value, onChange, wikiId, titles, simple, on
       TableCell,
       Callout,
       PageCards,
+      NavboxBlock,
       HtmlBlock,
       Placeholder.configure({
         showOnlyCurrent: false,
@@ -328,7 +364,7 @@ function Toolbar({
   const calloutKind = (editor.getAttributes('callout').kind ?? 'note') as CalloutKind
   const insertMenu = <InsertMenu editor={editor} />
   const onImage = editor.isActive('image')
-  const img = editor.getAttributes('image') as { align?: ImageAlign; size?: ImageSize }
+  const img = editor.getAttributes('image') as { align?: ImageAlign; size?: ImageSize; caption?: string }
   const linkTarget = simple ? (editor.getAttributes('wikiLink').page as string | undefined) : undefined
 
   const styleSelect = (
@@ -506,6 +542,14 @@ function Toolbar({
           {(['small', 'medium', 'large', 'full'] as ImageSize[]).map((s) =>
             btn(s[0].toUpperCase() + s.slice(1), 'Image size', () => chain().updateAttributes('image', { size: s }).run(), (img.size ?? 'medium') === s)
           )}
+          <span className="tb-sep" />
+          <input
+            className="tb-caption"
+            value={img.caption ?? ''}
+            placeholder="Caption (optional)"
+            title="Shown under the picture"
+            onChange={(e) => editor.commands.updateAttributes('image', { caption: e.target.value })}
+          />
           <span className="tb-sep" />
           {btn('Remove image', 'Remove image', () => chain().deleteSelection().run())}
         </div>
@@ -719,6 +763,9 @@ function InsertMenu({ editor }: { editor: Editor }): React.JSX.Element {
           <div className="menu insert-menu">
             {item('Page cards', 'Picture cards linking to pages, in groups (like “Appearances”)', () =>
               add({ type: 'pageCards', attrs: { data: JSON.stringify(emptyCards()) } })
+            )}
+            {item('Nav box', 'Related links that stay the same on every page that shows them (set up under Navigation)', () =>
+              add({ type: 'navboxBlock', attrs: { id: useStore.getState().meta?.navboxes?.[0]?.id ?? '' } })
             )}
             {item('Note box', 'A highlighted box for side information', () => box('note'))}
             {item('Tip box', 'A friendly hint or fun fact', () => box('tip'))}

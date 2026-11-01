@@ -13,6 +13,7 @@ import { pageThumb, visibleRows } from '../components/Infobox'
 import { SITE_CSS, SITE_JS } from './siteAssets'
 import { STORY_CSS, STORY_SITE_CSS } from '../lib/storyStyles'
 import { parseCards, renderCardsHtml } from '../lib/cards'
+import { autoNavboxes, navboxHtml, navboxTag, shownLinks, type ShownLink } from '../lib/navigation'
 import { mixLogos, mixSiteCss, mixSiteScript, mixThemes } from '../lib/mixUp'
 import { removeLook } from '../lib/looks'
 import {
@@ -119,6 +120,32 @@ export function buildSite(meta: WikiMeta, allPages: Record<string, Page>, opts: 
   const mixing = customOn && mixThemes(meta).length > 0
   const customCss = mixing ? removeLook(meta.customCss ?? '', 'color-theme') : (meta.customCss ?? '')
   const files: Record<string, string> = {}
+  const navbox = (id: string): string => navboxHtml(meta.navboxes?.find((b) => b.id === id), pages)
+  const cardsOf = (json: string): string => renderCardsHtml(parseCards(json), (t) => byKey.get(titleKey(t)), meta)
+
+  // The wiki's own sidebar sections. Links to pages that aren't in the website are left out.
+  const navLink = (l: ShownLink): string => {
+    const t = l.target
+    const text = escapeHtml(l.label)
+    let one = ''
+    if (t.kind === 'url') one = `<a href="${escapeHtml(t.url)}" target="_blank" rel="noreferrer">${text}</a>`
+    else if (t.kind === 'page') {
+      const p = byKey.get(titleKey(t.title))
+      if (p) one = `<a href="${fileOf.get(p.id)}">${text}</a>`
+    } else if (t.kind === 'category') {
+      const f = catFile.get(titleKey(t.name))
+      if (f) one = `<a href="${f}">${text}</a>`
+    }
+    const kids = l.children.map(navLink).filter(Boolean).join('')
+    if (!kids) return one
+    return `<details class="nav-sub"><summary>${one || `<span class="nav-plain">${text}</span>`}</summary><div class="nav-children">${kids}</div></details>`
+  }
+  const sidebarExtra = (meta.sidebar ?? [])
+    .map((s) => {
+      const links = shownLinks(s.links, pages).map(navLink).filter(Boolean).join('\n')
+      return links || s.title.trim() ? `\n<div class="nav-title">${escapeHtml(s.title)}</div>\n${links}` : ''
+    })
+    .join('')
 
   /** Fix up a finished piece of page HTML: wiki links, pictures, contents links. */
   const finish = (html: string): string => {
@@ -204,7 +231,7 @@ export function buildSite(meta: WikiMeta, allPages: Record<string, Page>, opts: 
 <nav class="sidebar">
 <div class="nav-title">Navigation</div>
 ${storiesOnly ? '' : '<a href="index.html">Main page</a>\n<a href="all-pages.html">All pages</a>\n<a href="categories.html">Categories</a>'}${hasStories ? '\n<a href="stories.html">Stories</a>' : ''}
-<a href="#" id="sw-random">Random page</a>
+<a href="#" id="sw-random">Random page</a>${sidebarExtra}
 </nav>
 <main class="content">
 <div class="content-card">
@@ -315,7 +342,7 @@ ${content}
       items.length ? `<div class="story-meta-row"><span class="story-meta-label">${label}</span>${items.join('')}</div>` : ''
     const series = info.series ? seriesStories(info.series, allPages).filter((x) => fileOf.has(x.id)) : []
     const about = p.body.replace(/<p>\s*<\/p>/g, '').trim()
-      ? renderBody(p.body, exists, (json) => renderCardsHtml(parseCards(json), (t) => byKey.get(titleKey(t)), meta)).html
+      ? renderBody(p.body, exists, cardsOf, navbox).html
       : ''
     return (
       `<article class="page story-page">${crumbs(p)}<header class="story-hero">${cover(p, 'big')}<div class="story-hero-text">` +
@@ -372,7 +399,7 @@ ${content}
     const prev = chapters[n - 1]
     const next = chapters[n + 1]
     const words = wordCount(p.body)
-    const body = renderBody(p.body, exists, (json) => renderCardsHtml(parseCards(json), (t) => byKey.get(titleKey(t)), meta)).html
+    const body = renderBody(p.body, exists, cardsOf, navbox).html
     const end = !next && story ? `<div class="chapter-end">${story.story!.status === 'complete' ? '✦ The End ✦' : 'To be continued…'}</div>` : ''
     return (
       `<article class="page chapter-page">${crumbs(story, story ? `Chapter ${n + 1} of ${chapters.length}` : p.chapter!.name)}` +
@@ -430,7 +457,9 @@ ${content}
       continue
     }
     const t = meta.templates.find((x) => x.id === p.templateId)
-    const body = renderBody(p.body, exists, (json) => renderCardsHtml(parseCards(json), (t) => byKey.get(titleKey(t)), meta)).html
+    const body = renderBody(p.body, exists, cardsOf, navbox).html
+    const autos = autoNavboxes(meta, p)
+    const bottom = autos.length ? `<div class="prose auto-navboxes">${renderBody(autos.map((b) => navboxTag(b.id)).join(''), exists, undefined, navbox).html}</div>` : ''
     const cats = p.categories.filter((c) => catFile.has(titleKey(c)))
     const content =
       `<article class="page"><h1 class="page-title">${escapeHtml(p.title)}</h1>` +
@@ -439,6 +468,7 @@ ${content}
         .filter((g) => g.images.length)
         .map(gallery)
         .join('')}<div class="clear"></div></div>` +
+      bottom +
       appearsIn(p) +
       (cats.length
         ? `<div class="catlinks"><b>Categories:</b>${cats.map((c) => `<a href="${catFile.get(titleKey(c))}">${escapeHtml(c)}</a>`).join('')}</div>`

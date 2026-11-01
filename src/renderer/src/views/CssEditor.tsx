@@ -1,6 +1,6 @@
 // The wiki's custom CSS: a code box with a live preview of a page beside it. The preview runs in a sealed
 // frame, so CSS that goes wrong can't hide this screen; in the rest of the app it only applies while reading.
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { fontFaceCss } from '@shared/defaults'
 import type { Page, WikiMeta } from '@shared/types'
 import { useStore } from '../store'
@@ -11,7 +11,7 @@ import { CSS_HINTS } from '../lib/customHtml'
 import { CodeArea } from '../components/CodeArea'
 import LookPicker from '../components/LookPicker'
 import { kb } from '../lib/platform'
-import { SAMPLE_ID, samplePage, sampleImagesUrl } from '../lib/samplePage'
+import { SAMPLE_ID, SAMPLE_NAVBOX, samplePage, sampleImagesUrl } from '../lib/samplePage'
 
 const EXAMPLE = `/* Rounded, glowing infobox */
 .infobox { border-radius: 14px; box-shadow: 0 0 18px rgba(150, 90, 255, .35); }
@@ -22,7 +22,8 @@ const EXAMPLE = `/* Rounded, glowing infobox */
 /** A page as the exported website shows it, made to work inside a frame here. `SAMPLE_ID` shows the sample page. */
 export function previewDocument(meta: WikiMeta, pages: Record<string, Page>, pageId: string | null): string {
   const all = pageId === SAMPLE_ID ? { ...pages, [SAMPLE_ID]: samplePage(meta) } : pages
-  const site = buildSite({ ...meta, customCss: '', customCssOff: false, mix: undefined }, all, { only: pageId ?? '-', includePrivate: true })
+  const navboxes = pageId === SAMPLE_ID ? [...(meta.navboxes ?? []), SAMPLE_NAVBOX] : meta.navboxes
+  const site = buildSite({ ...meta, customCss: '', customCssOff: false, mix: undefined, navboxes }, all, { only: pageId ?? '-', includePrivate: true })
   const html = (pageId && site.files[site.pageFiles[pageId]]) || site.files['all-pages.html']
   const fonts = new URL('fonts/', document.baseURI).href
   return html
@@ -36,6 +37,54 @@ export function previewDocument(meta: WikiMeta, pages: Record<string, Page>, pag
     .replace(/url\(&quot;images\//g, 'url(&quot;stash://wiki/images/')
 }
 
+/**
+ * A preview drawn at a desktop window's width and shrunk to fit, so the sidebar shows as it does on a computer
+ * (narrower than that, the website switches to its phone layout). `phone` shows the phone layout instead.
+ */
+function ScaledFrame({
+  frameRef,
+  boxClass,
+  frameClass,
+  srcDoc,
+  onLoad,
+  phone = false
+}: {
+  frameRef: React.RefObject<HTMLIFrameElement | null>
+  boxClass: string
+  frameClass: string
+  srcDoc: string
+  onLoad: () => void
+  phone?: boolean
+}): React.JSX.Element {
+  const box = useRef<HTMLDivElement>(null)
+  const [size, setSize] = useState({ w: 0, h: 0 })
+  useLayoutEffect(() => {
+    const el = box.current
+    if (!el) return
+    const measure = (): void => setSize({ w: el.clientWidth, h: el.clientHeight })
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  const design = phone ? 390 : Math.max(1100, size.w)
+  const scale = size.w ? Math.min(1, size.w / design) : 1
+  const left = phone && size.w > design ? (size.w - design) / 2 : 0
+  return (
+    <div ref={box} className={'preview-box ' + boxClass + (phone ? ' phone' : '')}>
+      <iframe
+        ref={frameRef}
+        className={frameClass}
+        title="Preview"
+        sandbox="allow-same-origin"
+        srcDoc={srcDoc}
+        onLoad={onLoad}
+        style={{ width: design, height: size.h / scale || '100%', left, transform: `scale(${scale})` }}
+      />
+    </div>
+  )
+}
+
 /** The sample page with the wiki's colors and custom CSS, for trying settings out. */
 export function SamplePreview(): React.JSX.Element {
   const meta = useStore((s) => s.meta)!
@@ -47,11 +96,10 @@ export function SamplePreview(): React.JSX.Element {
   }
   useEffect(push, [meta.customCss, meta.customCssOff])
   return (
-    <iframe
-      ref={frame}
-      className="sample-preview"
-      title="Sample page preview"
-      sandbox="allow-same-origin"
+    <ScaledFrame
+      frameRef={frame}
+      boxClass="sample-preview-box"
+      frameClass="sample-preview"
       srcDoc={doc}
       onLoad={() => {
         push()
@@ -74,6 +122,7 @@ export default function CssEditor(): React.JSX.Element {
   const [pageId, setPageId] = useState<string | null>(SAMPLE_ID)
   const frame = useRef<HTMLIFrameElement>(null)
   const [tab, setTab] = useState<'looks' | 'code'>('looks')
+  const [phone, setPhone] = useState(false)
   const latest = useRef(code)
   latest.current = code
 
@@ -135,6 +184,21 @@ export default function CssEditor(): React.JSX.Element {
         </label>
         <span className="muted small">{saved ? 'All changes saved' : 'Saving…'}</span>
         <span className="grow" />
+        <div className="seg" title="How wide to show the preview">
+          <button className={phone ? '' : 'on'} onClick={() => setPhone(false)}>
+            Computer
+          </button>
+          <button className={phone ? 'on' : ''} onClick={() => setPhone(true)}>
+            Phone
+          </button>
+        </div>
+        <button
+          className="btn small"
+          title="See the HTML and CSS of anything in the preview. You can also right-click something and choose Inspect element."
+          onClick={() => void window.stash.openInspector()}
+        >
+          Inspect element
+        </button>
         <label className="field inline">
           <span>Preview</span>
           <select value={pageId ?? ''} onChange={(e) => setPageId(e.target.value || null)}>
@@ -190,7 +254,7 @@ export default function CssEditor(): React.JSX.Element {
             </>
           )}
         </div>
-        <iframe ref={frame} className="css-preview" title="Preview" sandbox="allow-same-origin" srcDoc={doc} onLoad={onLoad} />
+        <ScaledFrame key={phone ? 'phone' : 'computer'} frameRef={frame} boxClass="css-preview-box" frameClass="css-preview" srcDoc={doc} onLoad={onLoad} phone={phone} />
       </div>
       <details className="css-hints" open={tab === 'code'}>
         <summary>What can I style?</summary>
@@ -207,6 +271,7 @@ export default function CssEditor(): React.JSX.Element {
           </tbody>
         </table>
         <p className="muted small">
+          Right-click anything in the preview and choose <b>Inspect element</b> to see its classes and which CSS styles it.
           Colors from Look &amp; settings are available as variables, e.g. <code>var(--accent)</code>, <code>var(--link)</code>,{' '}
           <code>var(--panel)</code>, <code>var(--text)</code>. If your CSS ever hides something you need, press {kb(',')} to come back to Look &amp;
           settings, or untick “Use my custom CSS”.

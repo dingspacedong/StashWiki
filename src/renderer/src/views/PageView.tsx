@@ -13,6 +13,7 @@ import { AppearsIn } from '../components/storyBits'
 import StoryView from './StoryView'
 import ChapterView from './ChapterView'
 import { usePrefs } from '../lib/prefs'
+import { autoNavboxes, navboxHtml, navboxTag } from '../lib/navigation'
 
 export default function PageView({ id }: { id: string }): React.JSX.Element {
   const page = useStore((s) => s.pages[id])
@@ -26,20 +27,21 @@ function WikiPageView({ id }: { id: string }): React.JSX.Element {
   const meta = useStore((s) => s.meta)!
   const go = useStore((s) => s.go)
   const simple = usePrefs((s) => s.simple)
+  const pages = useStore((s) => s.pages)
   const index = useTitleIndex()
   useApplyPageTheme(page?.theme)
 
-  const rendered = useMemo(
-    () =>
-      page
-        ? renderBody(
-            page.body,
-            (t) => index.has(titleKey(t)),
-            (json) => renderCardsHtml(parseCards(json), (t) => index.get(titleKey(t)), meta)
-          )
-        : null,
-    [page, index]
-  )
+  const rendered = useMemo(() => {
+    if (!page) return null
+    const all = Object.values(pages)
+    const exists = (t: string): boolean => index.has(titleKey(t))
+    const box = (id: string): string => navboxHtml(meta.navboxes?.find((b) => b.id === id), all)
+    const body = renderBody(page.body, exists, (json) => renderCardsHtml(parseCards(json), (t) => index.get(titleKey(t)), meta), box)
+    // Nav boxes set to show on pages in this page's categories go at the bottom.
+    const autos = autoNavboxes(meta, page)
+    const bottom = autos.length ? renderBody(autos.map((b) => navboxTag(b.id)).join(''), exists, undefined, box).html : ''
+    return { ...body, bottom }
+  }, [page, index, pages, meta])
 
   if (!page || !rendered) {
     return (
@@ -63,7 +65,7 @@ function WikiPageView({ id }: { id: string }): React.JSX.Element {
       spoiler.classList.toggle('revealed')
       return
     }
-    const img = (e.target as HTMLElement).closest('.prose > img, .prose p img, .prose li img')
+    const img = (e.target as HTMLElement).closest('.prose > img, .prose p img, .prose li img, .prose .img-fig img')
     if (img) {
       const file = decodeURIComponent(img.getAttribute('src')?.split('/images/')[1] ?? '')
       if (file) openLightbox([{ file, caption: img.getAttribute('alt') ?? '', source: '' }], 0)
@@ -146,6 +148,7 @@ function WikiPageView({ id }: { id: string }): React.JSX.Element {
         ))}
         <div className="clear" />
       </div>
+      {rendered.bottom && <div className="prose auto-navboxes" onClick={onBodyClick} dangerouslySetInnerHTML={{ __html: rendered.bottom }} />}
       <AppearsIn page={page} />
 
       {page.categories.length > 0 && (

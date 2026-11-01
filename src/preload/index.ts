@@ -27,6 +27,7 @@ const api: StashApi = {
   fetchImage: call('fetchImage'),
   revealWiki: call('revealWiki'),
   openExternal: call('openExternal'),
+  openInspector: call('openInspector'),
   exportShare: call('exportShare'),
   inspectShare: call('inspectShare'),
   applyShare: call('applyShare'),

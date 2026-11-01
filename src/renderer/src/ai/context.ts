@@ -23,6 +23,7 @@ export function bodyToText(html: string): string {
         const label = text.replace(/<[^>]+>/g, '')
         return label === decodeEntities(t) ? `[[${t}]]` : `[[${t}|${label}]]`
       })
+      .replace(/<div[^>]*data-navbox="[^"]*"[^>]*>(<\/div>)?/g, '\n[Nav box]\n')
       .replace(/<div[^>]*data-cards="([^"]*)"[^>]*>(<\/div>)?/g, (_m, raw: string) => {
         const groups = parseCards(decodeEntities(raw)).groups
         return '\n[Page cards: ' + groups.map((g) => `${g.title || 'Pages'}: ${g.cards.map((c) => c.page).join(', ')}`).join('; ') + ']\n'
@@ -69,6 +70,7 @@ const CSS_HELP = `Custom CSS and HTML blocks (for people who ask for looks or ef
 - "update_css" changes the wiki's custom CSS (target "wiki", used on every page and in the exported website) or one page's (target "page"). Use mode "append" to add rules; use "replace" with the complete stylesheet when changing existing rules.
 - Useful selectors: body, .topbar, .sidebar, .content-card, .page-title, .prose (h2, p, a), .infobox (.ib-title, .ib-header, .ib-label, .ib-value), .toc, .hatnote, .top-quote, .callout ([data-callout="tip"]), .pc-card, .gallery, .catlinks, .html-block, a.wikilink, a.new. Theme colors are CSS variables: var(--accent), var(--link), var(--text), var(--panel), var(--surface), var(--bg), var(--border), var(--ib-head) (inside the infobox). Parts of the CSS between /* ✦ look: … */ and /* ✦ end */ comments are ready-made looks the user switched on with a click: when replacing the stylesheet, keep those comment lines around them unchanged.
 - "html_block" adds a block of raw HTML to a page (shown as written; CSS in a <style> tag inside it works; [[Page]] links work). No JavaScript: scripts, forms, iframes and on…= handlers are always removed.
+- Pages show their HTML blocks as [HTML block: …]. To change one, send its whole new HTML back in that same [HTML block: …] form where it goes in the section's text. Blocks you leave out stay on the page as they are.
 - Show CSS and HTML only inside the blocks, never as loose code in your message.`
 
 /** `extra`: more pages the user chose (or let it find) for the buddy to read. */

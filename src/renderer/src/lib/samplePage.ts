@@ -1,11 +1,13 @@
 // A made-up page with one of everything (infobox, contents, note boxes, page cards, a fancy block, a table,
 // a gallery…), so looks can be tried out before a wiki has pages that use them all. Only ever shown in
 // previews; it is never saved. Its pictures ship with the app (public/sample).
-import type { Page, WikiMeta } from '@shared/types'
+import type { Navbox, Page, WikiMeta } from '@shared/types'
 import { escapeHtml } from '@shared/defaults'
 import { pageFields } from './fields'
 import { ALL_BLOCKS, blockHtml } from './blockTemplates'
 import { htmlBlockTag } from './customHtml'
+import { navboxTag } from './navigation'
+import { imgUrl } from './theme'
 
 export const SAMPLE_ID = 'sw-sample-page'
 export const SAMPLE_TITLE = 'Sample page'
@@ -22,6 +24,16 @@ const VALUES = [
   'Pip, Juno',
   'The Fog King'
 ]
+
+/** A nav box for the sample page (added to the wiki's own only while previewing). */
+export const SAMPLE_NAVBOX: Navbox = {
+  id: 'sw-sample-nav',
+  title: 'A nav box',
+  groups: [
+    { id: 'a', label: 'Characters', pages: ['Sample page', 'Ash Emberly', 'Rowan'] },
+    { id: 'b', label: 'Places', pages: ['Willowmere', 'The Lighthouse'] }
+  ]
+}
 
 const p = (html: string): string => `<p>${html}</p>`
 const link = (title: string, text?: string): string => `<a data-wikilink="${escapeHtml(title)}">${escapeHtml(text ?? title)}</a>`
@@ -63,6 +75,7 @@ export function samplePage(meta: WikiMeta): Page {
     '<ul><li>A list</li><li>with a few</li><li>points in it</li></ul>',
     '<ol><li>And a numbered one</li><li>second</li></ol>',
     '<blockquote><p>A quote inside the page.</p></blockquote>',
+    `<img src="${imgUrl(PIC.landscape)}" data-align="center" data-size="medium" data-caption="A picture in the writing, with a caption">`,
     '<h2>Boxes</h2>',
     callout('note', 'A note box.'),
     callout('tip', 'A tip box.'),
@@ -72,7 +85,8 @@ export function samplePage(meta: WikiMeta): Page {
     `<div data-cards="${escapeHtml(JSON.stringify(cards))}"></div>`,
     ...(banner ? ['<h2>A fancy block</h2>', htmlBlockTag(blockHtml(banner))] : []),
     '<h2>A table</h2>',
-    '<table><tbody><tr><th>Name</th><th>Role</th></tr><tr><td>Ash</td><td>Lantern keeper</td></tr><tr><td>Rowan</td><td>Cartographer</td></tr></tbody></table>'
+    '<table><tbody><tr><th>Name</th><th>Role</th></tr><tr><td>Ash</td><td>Lantern keeper</td></tr><tr><td>Rowan</td><td>Cartographer</td></tr></tbody></table>',
+    navboxTag(SAMPLE_NAVBOX.id)
   ].join('\n')
   return {
     id: SAMPLE_ID,

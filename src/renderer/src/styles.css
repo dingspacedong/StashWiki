@@ -127,6 +127,8 @@ img { max-width: 100%; }
 
 /* Font set here too, so a look that changes --font-body on .layout (the color themes do) reaches the page. */
 .layout { display: flex; flex: 1; min-height: 0; font-family: var(--font-body); }
+/* Text size (Look & settings): the sidebar and the page are drawn bigger or smaller, like zooming in. */
+.sidebar, .content-card.zoomed { zoom: var(--zoom, 1); }
 .sidebar {
   width: 196px;
   flex: none;
@@ -157,6 +159,23 @@ img { max-width: 100%; }
 }
 .nav-link:hover { background: color-mix(in srgb, var(--surface) 70%, transparent); }
 .nav-link.active { background: var(--surface); color: var(--text); font-weight: 600; }
+/* the wiki's own sidebar sections */
+.nav-row { display: flex; align-items: center; }
+.nav-row .nav-link { flex: 1; min-width: 0; }
+.nav-link.new { color: var(--redlink); }
+.nav-toggle { flex: none; border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 11px; padding: 4px 6px; border-radius: 4px; }
+.nav-toggle:hover { background: color-mix(in srgb, var(--surface) 70%, transparent); }
+.nav-children { margin: 0 0 4px 12px; padding-left: 4px; border-left: 1px solid var(--border); }
+.nav-children .nav-link { font-size: 13px; padding-top: 3px; padding-bottom: 3px; }
+/* nav boxes */
+.navbox { clear: both; margin: 22px 0 12px; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: var(--panel); font-size: 13.5px; line-height: 1.5; }
+.nb-title { background: var(--accent); color: var(--accent-text); text-align: center; font-weight: 700; padding: 6px 10px; font-family: var(--font-heading); }
+.nb-row { display: grid; grid-template-columns: minmax(90px, 22%) minmax(0, 1fr); border-top: 1px solid var(--border); }
+.nb-label { font-weight: 700; text-align: right; padding: 6px 12px; background: color-mix(in srgb, var(--accent) 10%, var(--panel)); }
+.nb-links { padding: 6px 12px; background: var(--surface); }
+.nb-dot { color: var(--muted); }
+@media (max-width: 640px) { .nb-row { grid-template-columns: 1fr; } .nb-label { text-align: left; } }
+.auto-navboxes { margin-top: 8px; }
 .sidebar-foot { margin-top: auto; font-size: 11px; color: var(--muted); padding: 0 10px; }
 
 .content-scroll { flex: 1; overflow-y: auto; padding: 18px 22px 40px 4px; }
@@ -350,6 +369,16 @@ textarea { resize: vertical; }
 .prose img[data-size="medium"] { width: 320px; }
 .prose img[data-size="large"] { width: 520px; }
 .prose img[data-size="full"] { width: 100%; float: none; margin: 12px 0; }
+/* pictures with a caption (and every picture while editing) */
+.prose .img-fig { margin: 12px auto; }
+.prose .img-fig[data-align="left"] { float: left; margin: 4px 18px 10px 0; }
+.prose .img-fig[data-align="right"] { float: right; margin: 4px 0 10px 18px; }
+.prose .img-fig[data-size="small"] { width: 180px; }
+.prose .img-fig[data-size="medium"] { width: 320px; }
+.prose .img-fig[data-size="large"] { width: 520px; }
+.prose .img-fig[data-size="full"] { width: 100%; float: none; margin: 12px 0; }
+.prose .img-fig img { width: 100%; margin: 0; float: none; }
+.prose .img-fig figcaption { font-size: 13px; color: var(--muted); text-align: center; margin-top: 5px; line-height: 1.4; }
 
 .toc {
   display: inline-block;
@@ -580,7 +609,10 @@ textarea { resize: vertical; }
 
 .editor-prose { min-height: 340px; padding: 16px 20px; outline: none; }
 .editor-prose img { cursor: default; }
-.editor-prose img.ProseMirror-selectednode { outline: 3px solid var(--link); }
+.editor-prose img.ProseMirror-selectednode, .editor-prose .ed-img.ProseMirror-selectednode img { outline: 3px solid var(--link); }
+.editor-prose .ed-img { position: relative; }
+.ed-img-cap { font-size: 13px; color: var(--muted); text-align: center; margin-top: 5px; line-height: 1.4; }
+.tb-caption { width: 210px; font-size: 13px !important; padding: 3px 8px !important; }
 .editor-prose a.wikilink { color: var(--link); border-bottom: 1px dashed color-mix(in srgb, var(--link) 50%, transparent); }
 .editor-prose a[href] { color: var(--link); text-decoration: underline; }
 .editor-prose p.is-empty[data-placeholder]:not([data-placeholder=""])::before,
@@ -763,7 +795,10 @@ textarea { resize: vertical; }
 .mix-theme.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
 .mix-swatch { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--border); flex: none; }
 .sample-btn { margin-top: 12px; }
-.sample-preview { width: 100%; height: 560px; border: 1px solid var(--border); border-radius: 8px; background: #fff; margin-top: 8px; }
+.preview-box { position: relative; overflow: hidden; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+.preview-box.phone { background: var(--panel); }
+.preview-box iframe { position: absolute; top: 0; left: 0; border: 0; transform-origin: 0 0; background: #fff; }
+.sample-preview-box { width: 100%; height: 560px; margin-top: 8px; }
 .path { display: inline-block; word-break: break-all; padding: 4px 8px; }
 
 /* ---------- library ---------- */
@@ -1208,7 +1243,7 @@ body { overflow-wrap: break-word; }
 .css-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 14px; align-items: stretch; }
 .css-code { display: flex; flex-direction: column; gap: 6px; }
 .css-code .code-area { flex: 1; min-height: 420px; }
-.css-preview { width: 100%; min-height: 520px; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+.css-preview-box { min-height: 560px; }
 .css-hints { margin-top: 14px; }
 .css-hints summary { cursor: pointer; font-weight: 600; }
 .css-hints table { border-collapse: collapse; margin: 8px 0; font-size: 13px; }
@@ -1343,3 +1378,34 @@ html.sw-focus .chapter-extras { display: none; }
 
 /* Note boxes, quotes and fancy blocks sit beside the infobox instead of running under it. */
 .prose .callout, .prose > blockquote, .prose .html-block { display: flow-root; }
+
+/* My blocks (fancy blocks saved for reuse) */
+.my-block-wrap { position: relative; }
+.my-block-wrap .look-opt { width: 100%; }
+.my-block-del { position: absolute; top: 6px; right: 6px; }
+.my-block-name input { width: 200px; }
+
+/* Wiki tools → Navigation */
+.navigation-view .nav-h2 { font-family: var(--font-heading); font-weight: 400; font-size: 22px; margin: 26px 0 2px; border-bottom: 1px solid var(--border); padding-bottom: 3px; }
+.nav-cards { display: flex; flex-direction: column; gap: 14px; align-items: flex-start; margin-top: 10px; }
+.nav-card { width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 12px; background: var(--panel); display: flex; flex-direction: column; gap: 10px; }
+.nav-card-head { display: flex; align-items: center; gap: 10px; }
+.nav-card-title { font-weight: 600; font-size: 15px !important; width: 260px; }
+.nav-links { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.nav-links.sub { margin: 6px 0 0 26px; padding-left: 10px; border-left: 2px solid var(--border); }
+.nav-link-edit { width: 100%; }
+.nav-link-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.nav-target { width: 240px; }
+.nav-label { width: 170px; }
+.nb-edit-rows { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.nb-edit-row { width: 100%; display: grid; grid-template-columns: 170px minmax(0, 1fr) auto; gap: 10px; align-items: start; }
+.nb-edit-pages { display: flex; flex-direction: column; gap: 6px; }
+.nb-edit-cat { margin: 0; }
+.nb-edit-cat select { max-width: 220px; }
+.nb-edit-btns { display: flex; gap: 2px; }
+.nb-edit-show { display: flex; flex-direction: column; gap: 4px; }
+.nb-preview .navbox, .nbn-preview .navbox { margin: 0; }
+.nb-preview a, .nbn-preview a { pointer-events: none; }
+.navbox-node .pcn-bar select { max-width: 220px; }
+.nbn-preview { padding: 8px 4px 0; }
+.nbn-hint { padding: 4px 4px 2px; }

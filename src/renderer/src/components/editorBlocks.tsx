@@ -7,6 +7,7 @@ import { emptyCards, parseCards, renderCardsHtml, type CardsData, type PageCard 
 import { imgUrl } from '../lib/theme'
 import { titleKey } from '../lib/wikitext'
 import { pageThumb } from './Infobox'
+import { navboxHtml } from '../lib/navigation'
 import { useAllCategories } from './CategoryInput'
 import PagePicker from './PagePicker'
 import SortableRows from './SortableRows'
@@ -277,5 +278,73 @@ function GroupEditor({
         )}
       </div>
     </div>
+  )
+}
+
+/** A nav box placed on the page. Only its id is stored: the box itself lives in the wiki's settings, so it stays in step everywhere. */
+export const NavboxBlock = Node.create({
+  name: 'navboxBlock',
+  group: 'block',
+  atom: true,
+  draggable: true,
+  addAttributes() {
+    return {
+      id: {
+        default: '',
+        parseHTML: (el) => el.getAttribute('data-navbox') ?? '',
+        renderHTML: (attrs) => ({ 'data-navbox': attrs.id })
+      }
+    }
+  },
+  parseHTML() {
+    return [{ tag: 'div[data-navbox]' }]
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ['div', mergeAttributes({ class: 'navbox-block' }, HTMLAttributes)]
+  },
+  addNodeView() {
+    return ReactNodeViewRenderer(NavboxView)
+  }
+})
+
+function NavboxView({ node, updateAttributes, deleteNode, selected }: NodeViewProps): React.JSX.Element {
+  const meta = useStore((s) => s.meta)!
+  const pages = useStore((s) => s.pages)
+  const all = useMemo(() => Object.values(pages), [pages])
+  const boxes = meta.navboxes ?? []
+  const box = boxes.find((b) => b.id === node.attrs.id)
+  const make = async (): Promise<void> => {
+    const fresh = { id: uid(), title: meta.name, groups: [{ id: uid(), label: 'Characters', pages: [], category: '' }], showOn: [] }
+    await useStore.getState().saveMeta({ ...meta, navboxes: [...boxes, fresh] })
+    updateAttributes({ id: fresh.id })
+  }
+  return (
+    <NodeViewWrapper className={'page-cards-node navbox-node' + (selected ? ' selected' : '')} contentEditable={false}>
+      <div className="pcn-bar">
+        <span className="pcn-label">Nav box</span>
+        {boxes.length > 0 && (
+          <select value={box ? box.id : ''} onChange={(e) => updateAttributes({ id: e.target.value })} title="Which nav box to show here">
+            {!box && <option value="">Pick a nav box…</option>}
+            {boxes.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.title || 'Navigation'}
+              </option>
+            ))}
+          </select>
+        )}
+        <button className="link-btn small" onClick={() => void make()}>
+          + New nav box
+        </button>
+        <button className="link-btn danger small" onClick={() => deleteNode()}>
+          Remove
+        </button>
+      </div>
+      {box ? (
+        <div className="prose nbn-preview" dangerouslySetInnerHTML={{ __html: navboxHtml(box, all) }} />
+      ) : (
+        <div className="pcn-empty">{boxes.length ? 'Pick which nav box goes here.' : 'No nav boxes yet. Click “+ New nav box”.'}</div>
+      )}
+      <div className="hint nbn-hint">Change what’s in it under Wiki tools → Navigation; every page showing it changes too.</div>
+    </NodeViewWrapper>
   )
 }

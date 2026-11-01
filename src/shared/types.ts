@@ -48,6 +48,8 @@ export interface Theme {
   sidebarColor?: string
   sidebarOpacity?: string
   sidebarEdge?: 'hard' | 'soft'
+  /** How big the sidebar and pages are drawn, in percent (100 = normal). Some fonts look small at the same size. */
+  textSize?: string
 }
 
 /** Per-page color overrides; anything left out falls back to the wiki theme. */
@@ -177,6 +179,52 @@ export interface WikiMeta {
   extraLogos?: string[]
   /** Just for fun: switch between logos and/or color themes now and then. */
   mix?: MixSettings
+  /** The wiki's own sidebar sections (a header with links), shown below Navigation. */
+  sidebar?: NavSection[]
+  /** Nav boxes: defined once, shown on many pages, so changing one changes it everywhere. */
+  navboxes?: Navbox[]
+  /** Fancy blocks saved for reuse ("My blocks" among the ready-made ones). */
+  myBlocks?: MyBlock[]
+}
+
+export interface NavLink {
+  id: string
+  /** Shown text; empty uses the target's name. */
+  label: string
+  /** A page title, "Category:Name", or a web address. */
+  target: string
+  /** For a category: list its pages under it as well. */
+  listPages?: boolean
+  children?: NavLink[]
+}
+
+export interface NavSection {
+  id: string
+  title: string
+  links: NavLink[]
+}
+
+export interface Navbox {
+  id: string
+  title: string
+  groups: NavboxRow[]
+  /** Shown by itself at the bottom of every page in these categories. */
+  showOn?: string[]
+}
+
+export interface NavboxRow {
+  id: string
+  label: string
+  /** Page titles picked by hand. */
+  pages: string[]
+  /** Also every page in this category (kept up to date by itself). */
+  category?: string
+}
+
+export interface MyBlock {
+  id: string
+  name: string
+  html: string
 }
 
 export interface MixSettings {
@@ -232,6 +280,8 @@ export interface StashApi {
   fetchImage(wikiId: string, url: string): Promise<string | null>
   revealWiki(wikiId: string): Promise<void>
   openExternal(url: string): Promise<void>
+  /** Opens the inspector (Chromium's developer tools) for looking at the page's HTML and CSS. */
+  openInspector(): Promise<void>
   exportShare(wikiId: string): Promise<string | null>
   inspectShare(path?: string): Promise<ShareInfo | null>
   applyShare(token: string, mode: ImportMode): Promise<ImportResult>

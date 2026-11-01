@@ -92,6 +92,17 @@ export default function ThemeEditor({ value, base, onChange, isPage, wikiId }: P
       <div className="font-row">
         <FontSelect label="Body font" value={value.bodyFont} fallback={isPage ? undefined : base.bodyFont} onChange={(v) => set('bodyFont', v)} />
         <FontSelect label="Heading font" value={value.headingFont} fallback={isPage ? undefined : base.headingFont} onChange={(v) => set('headingFont', v)} />
+        <label className="field inline" title="Makes the sidebar and pages bigger or smaller, pictures included, like zooming in">
+          <span>Text size</span>
+          <select value={value.textSize ?? (isPage ? '' : base.textSize ?? '100')} onChange={(e) => set('textSize', e.target.value || undefined)}>
+            {isPage && <option value="">Wiki default</option>}
+            {['80', '90', '100', '110', '120', '135', '150'].map((n) => (
+              <option key={n} value={n}>
+                {n === '100' ? 'Normal (100%)' : `${n}%`}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       <div className="bg-row">

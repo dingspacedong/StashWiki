@@ -428,10 +428,81 @@ export function withMode(p: Proposal, mode: EditMode): Proposal {
 
 const HAS_HTML = /<\/?(p|h[1-6]|ul|ol|li|strong|em|b|i|blockquote|br|a|div|span|table)\b/i
 
-/** Turn the buddy's writing (HTML, or Markdown-ish text) into page HTML with [[links]] made into wiki links. */
+/**
+ * Turn the buddy's writing (HTML, or Markdown-ish text) into page HTML with [[links]] made into wiki links.
+ * Fancy (HTML) blocks it sends back, as "[HTML block: …]" or as loose HTML with its own classes and styles,
+ * become real blocks again instead of melting into the page's text.
+ */
 export function toBodyHtml(text: string): string {
-  const html = HAS_HTML.test(text) ? text : markdownLite(text)
-  return linkify(html)
+  const lifted: string[] = []
+  const marked = text
+    .replace(/\[HTML block:\s*([\s\S]*?[>›])\s*\]/g, (_m, inner: string) => {
+      lifted.push(inner.replace(/‹/g, '<').replace(/›/g, '>').trim())
+      return `\n\n@@SWBLOCK${lifted.length - 1}@@\n\n`
+    })
+    // Page cards can't be rewritten as text; the originals stay on the page (see keepBlocks).
+    .replace(/\[(Page cards|Nav box)[^\]\n]*\]/g, '')
+  const html = HAS_HTML.test(marked) ? wrapLooseHtml(marked) : markdownLite(marked)
+  return linkify(html).replace(/(?:<p>)?@@SWBLOCK(\d+)@@(?:<\/p>)?/g, (_m, i: string) => htmlBlockTag(lifted[Number(i)] ?? ''))
+}
+
+const ATOM = /<div\b[^>]*\bdata-(html|cards|navbox)="([^"]*)"[^>]*>\s*<\/div>/g
+const looseFancy = (block: string): boolean =>
+  /^\s*<style\b/i.test(block) || (/^\s*<[a-z][a-z0-9]*\b[^>]*\b(class|style)=/i.test(block) && !/^\s*<[a-z][a-z0-9]*\b[^>]*\bdata-(html|cards|navbox|callout)=/i.test(block))
+
+/** Runs of top-level HTML with its own classes, styles or <style> (a fancy block written out) become one HTML block. */
+function wrapLooseHtml(html: string): string {
+  const out: string[] = []
+  let run: string[] = []
+  const flush = (): void => {
+    if (run.length) out.push(htmlBlockTag(run.join('').trim()))
+    run = []
+  }
+  for (const b of splitBlocks(html)) {
+    if (looseFancy(b)) run.push(b)
+    else if (run.length && !b.trim()) run.push(b)
+    else {
+      flush()
+      out.push(b)
+    }
+  }
+  flush()
+  return out.join('')
+}
+
+/**
+ * Fancy blocks and page cards that were in `existing` but are missing from its replacement `next` are put back
+ * where they were (roughly), so rewriting a section's text never deletes them. A changed block the buddy sent
+ * back counts as the new version of a missing one.
+ */
+export function keepBlocks(existing: string, next: string): string {
+  const old = [...existing.matchAll(ATOM)]
+  if (!old.length) return next
+  const fresh = [...next.matchAll(ATOM)]
+  const have = new Set(fresh.map((m) => m[2]))
+  const spare: Record<string, number> = {}
+  for (const m of fresh) if (!old.some((o) => o[2] === m[2])) spare[m[1]] = (spare[m[1]] ?? 0) + 1
+  const blocks = splitBlocks(next)
+  // Where each one was: how much of the section's writing came before it.
+  const before = splitBlocks(existing)
+  const writing = before.filter((b) => !/^<div\b[^>]*\bdata-(html|cards|navbox)=/.test(b)).length
+  const add: { at: number; tag: string }[] = []
+  for (const o of old) {
+    if (have.has(o[2])) continue
+    if (spare[o[1]]) {
+      spare[o[1]]--
+      continue
+    }
+    const ahead = before.slice(0, before.findIndex((b) => b.includes(o[2]))).filter((b) => !/^<div\b[^>]*\bdata-(html|cards|navbox)=/.test(b)).length
+    add.push({ at: Math.round((ahead / Math.max(1, writing)) * blocks.length), tag: o[0] })
+  }
+  if (!add.length) return next
+  const out: string[] = []
+  for (let i = 0; i <= blocks.length; i++) {
+    for (const a of add) if (a.at === i) out.push(a.tag)
+    if (i < blocks.length) out.push(blocks[i])
+  }
+  return out.join('')
 }
 
 function inline(s: string): string {
@@ -600,7 +671,7 @@ export function setSection(body: string, heading: string, html: string, mode: Ed
   // Models often send the whole section back (old text, maybe reworded, plus new) even when asked to add.
   // Then the new version replaces the old one instead of stacking a second copy under it.
   const replace = mode === 'replace' || (!forced && resendsExisting(existing, own))
-  const middle = replace ? own : appendWithoutRepeats(existing, own)
+  const middle = replace ? keepBlocks(existing, own) : appendWithoutRepeats(existing, own)
   return body.slice(0, start) + middle + body.slice(end)
 }
 
@@ -643,7 +714,7 @@ export function setIntro(body: string, html: string, mode: EditMode = 'append', 
   const lead = first < 0 ? body : body.slice(0, first)
   const rest = first < 0 ? '' : body.slice(first)
   const replace = mode === 'replace' || (!forced && resendsExisting(lead, html))
-  return (replace ? html : appendWithoutRepeats(lead, html)) + rest
+  return (replace ? keepBlocks(lead, html) : appendWithoutRepeats(lead, html)) + rest
 }
 
 /**
@@ -690,7 +761,7 @@ export function applyEdit(body: string, edit: TextEdit, sanitize: (html: string)
   const blocks = splitBlocks(body)
   for (let n = 0; n < blocks.length; n++) {
     // HTML blocks and page cards are only changed as a whole.
-    if (/^<div\b[^>]*data-(html|cards)=/.test(blocks[n])) continue
+    if (/^<div\b[^>]*data-(html|cards|navbox)=/.test(blocks[n])) continue
     const text = bodyToText(blocks[n])
     const m = text.match(flexible(find)) ?? text.match(flexible(bodyToText(toBodyHtml(find))))
     if (!m) continue
@@ -820,7 +891,7 @@ export function plan(p: Proposal, ctx: PlanContext): Plan {
         if (findPage(ctx.pages, p.title)) throw new Error(`There is already a page called “${cleanTitle(p.title)}”.`)
         page.title = cleanTitle(p.title)
       }
-      if (p.body !== undefined) page.body = html(p.body)
+      if (p.body !== undefined) page.body = keepBlocks(existing.body, html(p.body))
       if (p.intro) page.body = setIntro(page.body, html(p.intro.html), p.intro.mode, p.intro.forced)
       for (const x of sectionsOf(p)) page.body = setSection(page.body, x.heading, html(x.html), x.mode, x.forced)
       for (const e of p.edits ?? []) page.body = applyEdit(page.body, e, ctx.sanitize)

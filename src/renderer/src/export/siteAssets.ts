@@ -31,10 +31,31 @@ a:hover { text-decoration: underline; }
 .menu-btn { display: none; border: 0; background: none; color: inherit; font-size: 22px; cursor: pointer; }
 
 .layout { display: flex; align-items: flex-start; max-width: 1400px; margin: 0 auto; font-family: var(--font-body); }
+/* Text size (Look & settings): the sidebar and the page are drawn bigger or smaller, like zooming in. */
+.sidebar, .content-card { zoom: var(--zoom, 1); }
 .sidebar { width: 190px; flex: none; padding: 20px 10px; position: sticky; top: 0; align-self: stretch; background: var(--sidebar-bg, transparent); }
 .nav-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); padding: 0 10px 4px; font-weight: 600; }
 .sidebar a { display: block; padding: 5px 10px; border-radius: 6px; }
 .sidebar a:hover { background: color-mix(in srgb, var(--surface) 70%, transparent); text-decoration: none; }
+.sidebar .nav-title + * { margin-top: 0; }
+.sidebar .nav-title:not(:first-child) { margin-top: 14px; }
+.sidebar details.nav-sub > summary { list-style: none; display: flex; align-items: center; cursor: pointer; }
+.sidebar details.nav-sub > summary::-webkit-details-marker { display: none; }
+.sidebar details.nav-sub > summary > a, .sidebar details.nav-sub > summary > span { flex: 1; min-width: 0; }
+.sidebar details.nav-sub > summary::after { content: "▸"; color: var(--muted); font-size: 11px; padding: 0 6px; }
+.sidebar details.nav-sub[open] > summary::after { content: "▾"; }
+.sidebar .nav-children { margin: 0 0 4px 12px; padding-left: 4px; border-left: 1px solid var(--border); }
+.sidebar .nav-children a { padding-top: 3px; padding-bottom: 3px; font-size: 14px; }
+.sidebar span.nav-plain { display: block; padding: 5px 10px; }
+/* nav boxes */
+.navbox { clear: both; margin: 22px 0 12px; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: var(--panel); font-size: 13.5px; line-height: 1.5; }
+.nb-title { background: var(--accent); color: var(--accent-text); text-align: center; font-weight: 700; padding: 6px 10px; font-family: var(--font-heading); }
+.nb-row { display: grid; grid-template-columns: minmax(90px, 22%) minmax(0, 1fr); border-top: 1px solid var(--border); }
+.nb-label { font-weight: 700; text-align: right; padding: 6px 12px; background: color-mix(in srgb, var(--accent) 10%, var(--panel)); }
+.nb-links { padding: 6px 12px; background: var(--surface); }
+.nb-dot { color: var(--muted); }
+@media (max-width: 640px) { .nb-row { grid-template-columns: 1fr; } .nb-label { text-align: left; } }
+.auto-navboxes { margin-top: 8px; }
 .content { flex: 1; min-width: 0; padding: 18px 22px 30px 4px; }
 .content-card { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 20px 32px 32px; box-shadow: 0 1px 3px rgb(0 0 0 / 0.06); }
 .site-foot { text-align: center; color: var(--muted); font-size: 12px; margin-top: 14px; }
@@ -75,6 +96,15 @@ a:hover { text-decoration: underline; }
 .prose img[data-size="medium"] { width: 320px; }
 .prose img[data-size="large"] { width: 520px; }
 .prose img[data-size="full"] { width: 100%; float: none; margin: 12px 0; }
+.prose .img-fig { margin: 12px auto; }
+.prose .img-fig[data-align="left"] { float: left; margin: 4px 18px 10px 0; }
+.prose .img-fig[data-align="right"] { float: right; margin: 4px 0 10px 18px; }
+.prose .img-fig[data-size="small"] { width: 180px; }
+.prose .img-fig[data-size="medium"] { width: 320px; }
+.prose .img-fig[data-size="large"] { width: 520px; }
+.prose .img-fig[data-size="full"] { width: 100%; float: none; margin: 12px 0; }
+.prose .img-fig img { width: 100%; margin: 0; float: none; }
+.prose .img-fig figcaption { font-size: 13px; color: var(--muted); text-align: center; margin-top: 5px; line-height: 1.4; }
 
 .toc { display: inline-block; min-width: 220px; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 8px 16px 8px 12px; margin: 6px 0 14px; font-size: 13.5px; }
 .toc summary { font-weight: 700; cursor: pointer; }
@@ -197,7 +227,7 @@ a:hover { text-decoration: underline; }
   .content { padding: 10px; }
   .content-card { padding: 16px; }
   .infobox { float: none; width: 100%; margin: 0 0 16px; }
-  .prose img[data-align] { float: none; margin: 12px auto; }
+  .prose img[data-align], .prose .img-fig[data-align] { float: none; margin: 12px auto; }
   .lightbox { padding: 20px 10px; }
   .lb-nav { display: none; }
 }

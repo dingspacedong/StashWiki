@@ -65,6 +65,12 @@ that is never saved; its pictures ship in `src/renderer/public/sample`.
 the `color-theme` look at display time; an exported website gets `mix.css` (each theme scoped to
 `html[data-mix="…"]`), a tiny inline script that picks one, and a `data-logos` list that `site.js` picks from.
 
+Navigation (`lib/navigation.ts`, Wiki tools → Navigation): `meta.sidebar` holds the wiki's own sidebar sections and
+`meta.navboxes` its nav boxes. A page stores only `<div data-navbox="id">`, so a box is drawn from the wiki's settings
+wherever it shows (`renderBody`'s `navbox` callback); boxes with `showOn` categories are also added at the bottom of
+pages in those categories. `meta.myBlocks` are fancy blocks saved for reuse. Fancy blocks, page cards and nav boxes are
+never rewritten as text by the writing buddy (`keepBlocks` / `toBodyHtml` in `ai/proposals.ts`).
+
 ## Stories
 
 A story is a page with `story` details (summary, status, rating, warnings, tags, characters, series, cover and the

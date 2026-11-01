@@ -2,11 +2,12 @@
 // reading. Edited in a window with a live preview.
 import { useEffect, useState } from 'react'
 import { Node, NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from '@tiptap/react'
-import { useTitleIndex } from '../store'
+import { uid } from '@shared/defaults'
+import { useStore, useTitleIndex } from '../store'
 import { decodeHtmlBlock, encodeHtmlBlock, renderHtmlBlock } from '../lib/customHtml'
 import { titleKey } from '../lib/wikitext'
 import { CodeArea, IsolatedHtml } from './CodeArea'
-import { BLOCK_SECTIONS, blockHtml, type BlockTemplate } from '../lib/blockTemplates'
+import { BLOCK_SECTIONS, blockHtml, type BlockSection, type BlockTemplate } from '../lib/blockTemplates'
 import { matches } from './LookPicker'
 
 export const HtmlBlock = Node.create({
@@ -86,7 +87,19 @@ function HtmlBlockEditor({ initial, onSave, onClose }: { initial: string; onSave
   const [tab, setTab] = useState<'blocks' | 'code'>(initial.trim() ? 'code' : 'blocks')
   const [words, setWords] = useState(false)
   const [picked, setPicked] = useState('')
+  const [naming, setNaming] = useState<string | null>(null)
   const index = useTitleIndex()
+  // Saved to the wiki, so "My blocks" travel with it (and with its share files).
+  const saveMine = async (name: string): Promise<void> => {
+    const meta = useStore.getState().meta!
+    const mine = meta.myBlocks ?? []
+    const same = mine.find((b) => b.name.trim().toLowerCase() === name.trim().toLowerCase())
+    if (same && !window.confirm(`Replace your block “${same.name}” with this one?`)) return
+    const next = same ? mine.map((b) => (b.id === same.id ? { ...b, html: code } : b)) : [...mine, { id: uid(), name: name.trim(), html: code }]
+    await useStore.getState().saveMeta({ ...meta, myBlocks: next })
+    useStore.getState().notify(`Saved “${name.trim()}” in My blocks`)
+    setNaming(null)
+  }
   const use = (t: BlockTemplate): void => {
     if (code.trim() && !window.confirm(`Replace what’s in this block with “${t.name}”?`)) return
     setCode(blockHtml(t))
@@ -144,6 +157,28 @@ function HtmlBlockEditor({ initial, onSave, onClose }: { initial: string; onSave
               Start from an example
             </button>
           )}
+          {code.trim() &&
+            (naming === null ? (
+              <button className="btn ghost small" title="Keep this block under “My blocks” to use again on other pages" onClick={() => setNaming('')}>
+                ⭐ Save as my block…
+              </button>
+            ) : (
+              <form
+                className="row gap my-block-name"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  if (naming.trim()) void saveMine(naming)
+                }}
+              >
+                <input autoFocus value={naming} placeholder="Name for your block" onChange={(e) => setNaming(e.target.value)} />
+                <button className="btn small" type="submit" disabled={!naming.trim()}>
+                  Save
+                </button>
+                <button className="link-btn small" type="button" onClick={() => setNaming(null)}>
+                  Cancel
+                </button>
+              </form>
+            ))}
           <span className="grow" />
           <button className="btn ghost" onClick={onClose}>
             Cancel
@@ -158,10 +193,24 @@ function HtmlBlockEditor({ initial, onSave, onClose }: { initial: string; onSave
 }
 
 function BlockPicker({ picked, onPick }: { picked: string; onPick: (t: BlockTemplate) => void }): React.JSX.Element {
-  const [sectionId, setSectionId] = useState(BLOCK_SECTIONS[0].id)
+  const myBlocks = useStore((s) => s.meta?.myBlocks)
+  // The wiki's saved blocks come first, as one more section.
+  const mine: BlockSection = {
+    id: 'mine',
+    title: 'My blocks',
+    icon: '⭐',
+    blocks: (myBlocks ?? []).map((b) => ({ id: 'my-' + b.id, name: b.name, hint: 'Saved by you', html: b.html }))
+  }
+  const sections = [mine, ...BLOCK_SECTIONS]
+  const [sectionId, setSectionId] = useState(mine.blocks.length ? 'mine' : BLOCK_SECTIONS[0].id)
   const [q, setQ] = useState('')
-  const section = BLOCK_SECTIONS.find((s) => s.id === sectionId) ?? BLOCK_SECTIONS[0]
-  const list = q.trim() ? BLOCK_SECTIONS.flatMap((s) => s.blocks.filter((b) => matches(q, b.name, b.hint, s.title))) : section.blocks
+  const section = sections.find((s) => s.id === sectionId) ?? BLOCK_SECTIONS[0]
+  const list = q.trim() ? sections.flatMap((s) => s.blocks.filter((b) => matches(q, b.name, b.hint, s.title))) : section.blocks
+  const forget = async (id: string, name: string): Promise<void> => {
+    if (!window.confirm(`Delete your block “${name}”? Pages already using it keep their copy.`)) return
+    const meta = useStore.getState().meta!
+    await useStore.getState().saveMeta({ ...meta, myBlocks: (meta.myBlocks ?? []).filter((b) => 'my-' + b.id !== id) })
+  }
   return (
     <div className="block-picker">
       <input
@@ -174,7 +223,7 @@ function BlockPicker({ picked, onPick }: { picked: string; onPick: (t: BlockTemp
       />
       {!q.trim() && (
         <div className="look-sections" role="tablist">
-          {BLOCK_SECTIONS.map((s) => (
+          {sections.map((s) => (
             <button
               key={s.id}
               role="tab"
@@ -188,12 +237,25 @@ function BlockPicker({ picked, onPick }: { picked: string; onPick: (t: BlockTemp
         </div>
       )}
       {q.trim() && !list.length && <p className="muted">No blocks match “{q}”.</p>}
+      {!q.trim() && section.id === 'mine' && !list.length && (
+        <p className="muted">
+          Nothing saved yet. Make a block (start from a ready-made one, or write your own HTML), then click “⭐ Save as my block…” to keep it here
+          for other pages.
+        </p>
+      )}
       <div className="block-list">
         {list.map((b) => (
-          <button key={b.id} className={'look-opt' + (picked === b.id ? ' on' : '')} onClick={() => onPick(b)}>
-            <strong>{b.name}</strong>
-            <span>{b.hint}</span>
-          </button>
+          <div key={b.id} className="my-block-wrap">
+            <button className={'look-opt' + (picked === b.id ? ' on' : '')} onClick={() => onPick(b)}>
+              <strong>{b.name}</strong>
+              <span>{b.hint}</span>
+            </button>
+            {b.id.startsWith('my-') && (
+              <button className="icon-btn my-block-del" title="Delete this saved block" onClick={() => void forget(b.id, b.name)}>
+                ×
+              </button>
+            )}
+          </div>
         ))}
       </div>
     </div>
