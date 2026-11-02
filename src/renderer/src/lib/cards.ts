@@ -4,6 +4,7 @@ import type { Page, WikiMeta } from '@shared/types'
 import { pageThumb } from '../components/Infobox'
 import { imgUrl } from './theme'
 import type { CardsData } from './cardsData'
+import { cardPicStyle, styleAttr } from './cardPic'
 
 export * from './cardsData'
 
@@ -19,7 +20,8 @@ export function renderCardsHtml(data: CardsData, find: (title: string) => Page |
         .map((c) => {
           const page = find(c.page)
           const pic = c.image || (page ? pageThumb(page, meta.templates.find((t) => t.id === page.templateId)) : null)
-          const img = pic ? `<img src="${imgUrl(pic)}" alt="" loading="lazy">` : `<span class="pc-letter">${escapeHtml((c.page.trim()[0] ?? '?').toUpperCase())}</span>`
+          const look = !c.image && page ? styleAttr(cardPicStyle(page)) : ''
+          const img = pic ? `<img src="${imgUrl(pic)}" alt="" loading="lazy"${look ? ` style="${look}"` : ''}>` : `<span class="pc-letter">${escapeHtml((c.page.trim()[0] ?? '?').toUpperCase())}</span>`
           return (
             `<a class="pc-card" data-wikilink="${escapeHtml(page?.title ?? c.page)}">` +
             `<span class="pc-img">${img}</span>` +

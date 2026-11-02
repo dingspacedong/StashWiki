@@ -9,6 +9,8 @@ import { pageThumb } from '../components/Infobox'
 import { formatDate } from '../components/ui'
 import { infoboxText } from '../lib/imageTabs'
 import { useAllCategories } from '../components/CategoryInput'
+import { CardStyleMenu, CategoryCard } from '../components/CardPictures'
+import { cardGridLook, reactStyle } from '../lib/cardPic'
 
 function PageLink({ page }: { page: Page }): React.JSX.Element {
   const go = useStore((s) => s.go)
@@ -148,6 +150,7 @@ export function CategoryView({ name }: { name: string }): React.JSX.Element {
   const info = meta.categories[name]
   const [desc, setDesc] = useState(info?.description ?? '')
   const members = sortedPages(pages).filter((p) => p.categories.some((c) => titleKey(c) === titleKey(name)))
+  const grid = cardGridLook(meta.cardStyle)
 
   const saveDesc = async (): Promise<void> => {
     await useStore.getState().saveMeta({ ...meta, categories: { ...meta.categories, [name]: { description: desc.trim() } } })
@@ -179,19 +182,17 @@ export function CategoryView({ name }: { name: string }): React.JSX.Element {
           </button>
         </p>
       )}
-      <h3>
-        {members.length} page{members.length === 1 ? '' : 's'} in this category
-      </h3>
-      <div className="card-grid">
-        {members.map((p) => {
-          const thumb = pageThumb(p, meta.templates.find((t) => t.id === p.templateId))
-          return (
-            <button key={p.id} className="page-card" onClick={() => go({ kind: 'page', id: p.id })}>
-              <span className="page-card-img">{thumb ? <img src={imgUrl(thumb)} alt="" /> : <span>{p.title.slice(0, 1)}</span>}</span>
-              <span className="page-card-title">{p.title}</span>
-            </button>
-          )
-        })}
+      <div className="row gap category-cards-head">
+        <h3>
+          {members.length} page{members.length === 1 ? '' : 's'} in this category
+        </h3>
+        <span className="grow" />
+        {members.length > 0 && <CardStyleMenu />}
+      </div>
+      <div className={grid.className} style={reactStyle(grid.style)}>
+        {members.map((p) => (
+          <CategoryCard key={p.id} page={p} onOpen={() => go({ kind: 'page', id: p.id })} />
+        ))}
       </div>
     </div>
   )

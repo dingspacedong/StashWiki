@@ -92,7 +92,8 @@ function TabbedImage({ tabs, alt }: { tabs: ImageTab[]; alt: string }): React.JS
 
 /** The picture used for this page in category cards: first infobox image, else first gallery image. */
 export function pageThumb(page: Page, template: Template | undefined): string | null {
-  // A story's picture is its cover.
+  // A picture picked just for cards; a story's picture is its cover.
+  if (page.card?.image) return page.card.image
   if (page.story?.cover) return page.story.cover
   for (const f of pageFields(template, page)) if (f.type === 'image' && page.infobox[f.id]) return page.infobox[f.id]
   for (const g of page.galleries) if (g.images[0]) return g.images[0].file

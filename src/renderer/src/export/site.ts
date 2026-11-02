@@ -14,6 +14,7 @@ import { SITE_CSS, SITE_JS } from './siteAssets'
 import { STORY_CSS, STORY_SITE_CSS } from '../lib/storyStyles'
 import { parseCards, renderCardsHtml } from '../lib/cards'
 import { autoNavboxes, navboxHtml, navboxTag, shownLinks, type ShownLink } from '../lib/navigation'
+import { cardGridLook, cardPicStyle, styleAttr } from '../lib/cardPic'
 import { mixLogos, mixSiteCss, mixSiteScript, mixThemes } from '../lib/mixUp'
 import { removeLook } from '../lib/looks'
 import {
@@ -540,6 +541,8 @@ ${content}
       `</ul>`,
     null
   )
+  const grid = cardGridLook(meta.cardStyle)
+  const blurCards = meta.cardStyle?.fit === 'whole' && meta.cardStyle.fill === 'blur'
   for (const [k, c] of categories) {
     const desc = meta.categories[c.name]?.description
     const cards = c.pages
@@ -548,8 +551,11 @@ ${content}
           p,
           meta.templates.find((t) => t.id === p.templateId)
         )
+        const look = styleAttr(cardPicStyle(p))
         const img = thumb
-          ? (images.add(thumb), `<img src="images/${escapeHtml(thumb)}" alt="" loading="lazy">`)
+          ? (images.add(thumb),
+            (blurCards ? `<img class="page-card-blur" src="images/${escapeHtml(thumb)}" alt="" aria-hidden="true" loading="lazy">` : '') +
+              `<img src="images/${escapeHtml(thumb)}" alt="" loading="lazy"${look ? ` style="${look}"` : ''}>`)
           : `<span>${escapeHtml(p.title.slice(0, 1))}</span>`
         return `<a class="page-card" href="${fileOf.get(p.id)}"><span class="page-card-img">${img}</span><span class="page-card-title">${escapeHtml(p.title)}</span></a>`
       })
@@ -558,7 +564,7 @@ ${content}
       `Category: ${c.name}`,
       `<h1 class="page-title"><span class="muted">Category:</span> ${escapeHtml(c.name)}</h1>` +
         (desc ? `<p>${escapeHtml(desc)}</p>` : '') +
-        `<h3>${c.pages.length} page${c.pages.length === 1 ? '' : 's'} in this category</h3><div class="card-grid">${cards}</div>`,
+        `<h3>${c.pages.length} page${c.pages.length === 1 ? '' : 's'} in this category</h3><div class="${grid.className}"${grid.style['--card-fill'] ? ` style="--card-fill: ${escapeHtml(grid.style['--card-fill'])}"` : ''}>${cards}</div>`,
       null
     )
   }

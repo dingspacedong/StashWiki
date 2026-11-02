@@ -202,6 +202,15 @@ a:hover { text-decoration: underline; }
 .page-card-img { aspect-ratio: 1; display: grid; place-items: center; background: color-mix(in srgb, var(--accent) 12%, var(--panel)); font-family: var(--font-heading); font-size: 40px; color: var(--accent); }
 .page-card-img img { width: 100%; height: 100%; object-fit: cover; }
 .page-card-title { padding: 7px; font-size: 13.5px; }
+/* Every card the same shape (Card pictures on a category page); the picture cropped to fill it or shown whole. */
+.page-card-img { overflow: hidden; position: relative; min-height: 0; }
+.page-card-img img { display: block; position: relative; }
+.card-grid.shape-portrait .page-card-img { aspect-ratio: 3 / 4; }
+.card-grid.shape-tall .page-card-img { aspect-ratio: 2 / 3; }
+.card-grid.shape-wide .page-card-img { aspect-ratio: 4 / 3; }
+.card-grid.fit-whole .page-card-img img { object-fit: contain; }
+.card-grid.fit-whole.fill-color .page-card-img { background: var(--card-fill); }
+.card-grid .page-card-img img.page-card-blur { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: blur(12px) brightness(0.92); transform: scale(1.5); }
 
 .lightbox { position: fixed; inset: 0; background: rgb(10 10 14 / 0.88); display: grid; place-items: center; z-index: 200; padding: 30px 70px; }
 .lightbox[hidden] { display: none; }

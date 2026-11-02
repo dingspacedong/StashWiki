@@ -110,6 +110,8 @@ export interface Page {
   theme: PageTheme
   /** Extra CSS for just this page. */
   customCss?: string
+  /** How this page shows in cards (category pages, page cards): another picture, and which part of it shows. */
+  card?: PageCardLook
   /** Set on a story's main page (its details and the order of its chapters). */
   story?: StoryInfo
   /** Set on a chapter: which story it belongs to, and its own name and notes. */
@@ -185,6 +187,27 @@ export interface WikiMeta {
   navboxes?: Navbox[]
   /** Fancy blocks saved for reuse ("My blocks" among the ready-made ones). */
   myBlocks?: MyBlock[]
+  /** How pictures sit in the cards on category pages. */
+  cardStyle?: CardStyle
+}
+
+export interface CardStyle {
+  /** Every card the same shape. */
+  shape?: 'square' | 'portrait' | 'tall' | 'wide'
+  /** Crop the picture to fill the card, or show it whole. */
+  fit?: 'crop' | 'whole'
+  /** Behind a whole picture: the theme's color, a blurred copy of the picture, or a color ("#rrggbb"). */
+  fill?: string
+}
+
+export interface PageCardLook {
+  /** A picture just for cards (otherwise the infobox picture). */
+  image?: string
+  /** Which part of the picture shows, in percent from the left and top (50 = middle). */
+  x?: number
+  y?: number
+  /** How close: 1 = the whole card filled, up to 3. */
+  zoom?: number
 }
 
 export interface NavLink {

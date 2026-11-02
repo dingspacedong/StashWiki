@@ -758,6 +758,31 @@ textarea { resize: vertical; }
 .page-card-img { aspect-ratio: 1; display: grid; place-items: center; background: color-mix(in srgb, var(--accent) 12%, var(--panel)); font-family: var(--font-heading); font-size: 40px; color: var(--accent); }
 .page-card-img img { width: 100%; height: 100%; object-fit: cover; }
 .page-card-title { padding: 7px; color: var(--link); font-size: 13.5px; }
+/* Every card the same shape (Card pictures on a category page); the picture cropped to fill it or shown whole. */
+.page-card-img { overflow: hidden; position: relative; min-height: 0; }
+.page-card-img img { display: block; position: relative; }
+.card-grid.shape-portrait .page-card-img { aspect-ratio: 3 / 4; }
+.card-grid.shape-tall .page-card-img { aspect-ratio: 2 / 3; }
+.card-grid.shape-wide .page-card-img { aspect-ratio: 4 / 3; }
+.card-grid.fit-whole .page-card-img img { object-fit: contain; }
+.card-grid.fit-whole.fill-color .page-card-img { background: var(--card-fill); }
+.card-grid .page-card-img img.page-card-blur { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: blur(12px) brightness(0.92); transform: scale(1.5); }
+.page-card-wrap { position: relative; display: flex; }
+.page-card-wrap .page-card { flex: 1; min-width: 0; }
+.page-card-adjust { position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; border: 0; border-radius: 6px; background: rgb(0 0 0 / 0.55); color: #fff; cursor: pointer; opacity: 0; transition: opacity 0.15s; font-size: 15px; }
+.page-card-wrap:hover .page-card-adjust, .page-card-adjust:focus-visible { opacity: 1; }
+.category-cards-head { align-items: center; }
+.card-style-menu { width: 400px; padding: 10px 12px; }
+.csm-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; flex-wrap: wrap; }
+.csm-label { width: 70px; font-size: 13px; font-weight: 600; }
+.card-style-menu .seg button { padding: 3px 9px; font-size: 12.5px; }
+.adjust-card { max-width: 560px; }
+.adjust-split { display: flex; gap: 22px; align-items: flex-start; }
+.adjust-grid { display: block; width: 220px; margin: 0; flex: none; }
+.adjust-grid .page-card-img.draggable { cursor: grab; touch-action: none; }
+.adjust-grid .page-card-img.draggable:active { cursor: grabbing; }
+.adjust-controls { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; flex: 1; }
+.adjust-controls input[type="range"] { width: 100%; }
 .search-results li { padding: 8px 0; border-bottom: 1px solid var(--border); }
 .trash-list li { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); }
 
