@@ -17,6 +17,7 @@ import { autoNavboxes, navboxHtml, navboxTag, shownLinks, type ShownLink } from 
 import { cardGridLook, cardPicStyle, styleAttr } from '../lib/cardPic'
 import { mixLogos, mixSiteCss, mixSiteScript, mixThemes } from '../lib/mixUp'
 import { removeLook } from '../lib/looks'
+import { ancestorsOf, categoryInfo, categoryMembers, categoryTree, childrenOf } from '../lib/categories'
 import {
   RATING_LABELS,
   STATUS_LABELS,
@@ -110,6 +111,11 @@ export function buildSite(meta: WikiMeta, allPages: Record<string, Page>, opts: 
       categories.get(k)!.pages.push(p)
     }
   }
+  // The categories those are inside get a page too, so the subcategories can be found from them.
+  for (const c of [...categories.values()])
+    for (const a of ancestorsOf(meta, c.name)) if (!categories.has(titleKey(a))) categories.set(titleKey(a), { name: a, pages: [] })
+  // A category set to show its subcategories' pages lists them as well.
+  for (const c of categories.values()) if (categoryInfo(meta, c.name)?.withSubPages) c.pages = categoryMembers(meta, wikiPages, c.name)
   const catFile = new Map<string, string>()
   for (const [k, c] of [...categories].sort((a, b) => a[1].name.localeCompare(b[1].name)))
     catFile.set(k, unique('category-' + slugify(c.name)) + '.html')
@@ -531,11 +537,15 @@ ${content}
   files['categories.html'] = layout(
     'Categories',
     `<h1 class="page-title">Categories</h1><ul class="category-list">` +
-      [...categories]
-        .sort((a, b) => a[1].name.localeCompare(b[1].name))
-        .map(([k, c]) => {
-          const desc = meta.categories[c.name]?.description
-          return `<li><a href="${catFile.get(k)}">${escapeHtml(c.name)}</a> <span class="muted">(${c.pages.length})</span>${desc ? `<div class="muted">${escapeHtml(desc)}</div>` : ''}</li>`
+      categoryTree(
+        meta,
+        [...categories.values()].map((c) => c.name)
+      )
+        .map(({ name, depth }) => {
+          const k = titleKey(name)
+          const c = categories.get(k)!
+          const desc = categoryInfo(meta, name)?.description
+          return `<li${depth ? ` style="padding-left: ${depth * 22}px"` : ''}>${depth ? '<span class="muted">↳</span> ' : ''}<a href="${catFile.get(k)}">${escapeHtml(c.name)}</a> <span class="muted">(${c.pages.length})</span>${desc ? `<div class="muted">${escapeHtml(desc)}</div>` : ''}</li>`
         })
         .join('') +
       `</ul>`,
@@ -543,8 +553,14 @@ ${content}
   )
   const grid = cardGridLook(meta.cardStyle)
   const blurCards = meta.cardStyle?.fit === 'whole' && meta.cardStyle.fill === 'blur'
+  const catLink = (name: string): string => {
+    const f = catFile.get(titleKey(name))
+    return f ? `<a href="${f}">${escapeHtml(categories.get(titleKey(name))!.name)}</a>` : ''
+  }
   for (const [k, c] of categories) {
-    const desc = meta.categories[c.name]?.description
+    const desc = categoryInfo(meta, c.name)?.description
+    const crumbs = ancestorsOf(meta, c.name).reverse().map(catLink).filter(Boolean)
+    const subs = childrenOf(meta, c.name).filter((s) => catFile.has(titleKey(s)))
     const cards = c.pages
       .map((p) => {
         const thumb = pageThumb(
@@ -562,8 +578,12 @@ ${content}
       .join('')
     files[catFile.get(k)!] = layout(
       `Category: ${c.name}`,
-      `<h1 class="page-title"><span class="muted">Category:</span> ${escapeHtml(c.name)}</h1>` +
+      (crumbs.length ? `<div class="cat-crumbs">${crumbs.join(' › ')} ›</div>` : '') +
+        `<h1 class="page-title"><span class="muted">Category:</span> ${escapeHtml(c.name)}</h1>` +
         (desc ? `<p>${escapeHtml(desc)}</p>` : '') +
+        (subs.length
+          ? `<h3>Subcategories</h3><ul class="subcat-list">${subs.map((s) => `<li>${catLink(s)} <span class="muted">(${categories.get(titleKey(s))!.pages.length})</span></li>`).join('')}</ul>`
+          : '') +
         `<h3>${c.pages.length} page${c.pages.length === 1 ? '' : 's'} in this category</h3><div class="${grid.className}"${grid.style['--card-fill'] ? ` style="--card-fill: ${escapeHtml(grid.style['--card-fill'])}"` : ''}>${cards}</div>`,
       null
     )

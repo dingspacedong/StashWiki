@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { Page, TrashedPage } from '@shared/types'
+import type { CategoryInfo, Page, TrashedPage } from '@shared/types'
 import { sortedPages, useStore } from '../store'
 import { isWikiPage, listed } from '../lib/stories'
 import { relinkRestored } from '../lib/storyActions'
@@ -11,6 +11,8 @@ import { infoboxText } from '../lib/imageTabs'
 import { useAllCategories } from '../components/CategoryInput'
 import { CardStyleMenu, CategoryCard } from '../components/CardPictures'
 import { cardGridLook, reactStyle } from '../lib/cardPic'
+import { CategoryEditor } from '../components/CategoryEditor'
+import { ancestorsOf, canNestUnder, categoryInfo, categoryMembers, categoryTree, childrenOf, parentOf, setCategory } from '../lib/categories'
 
 function PageLink({ page }: { page: Page }): React.JSX.Element {
   const go = useStore((s) => s.go)
@@ -120,24 +122,94 @@ export function Categories(): React.JSX.Element {
   const meta = useStore((s) => s.meta)!
   const go = useStore((s) => s.go)
   const all = useAllCategories()
-  const count = (c: string): number => Object.values(pages).filter((p) => p.categories.some((x) => titleKey(x) === titleKey(c))).length
-  const uncategorized = Object.values(pages).filter((p) => isWikiPage(p) && !p.categories.length).length
+  const [editor, setEditor] = useState<{ name?: string; parent?: string } | null>(null)
+  const [dragging, setDragging] = useState<string | null>(null)
+  // The row being dragged over, or '' for "top level".
+  const [over, setOver] = useState<string | null>(null)
+  const list = Object.values(pages)
+  const uncategorized = list.filter((p) => isWikiPage(p) && !p.categories.length).length
+  const canDrop = (target: string): boolean =>
+    !!dragging && (target ? canNestUnder(meta, dragging, target) && titleKey(parentOf(meta, dragging) ?? '') !== titleKey(target) : !!parentOf(meta, dragging))
+  const nest = async (name: string, parent: string): Promise<void> => {
+    const info = categoryInfo(meta, name)
+    await useStore.getState().saveMeta(setCategory(meta, name, { ...info, description: info?.description ?? '', parent: parent || undefined }))
+  }
+  const dropProps = (target: string): React.HTMLAttributes<HTMLElement> => ({
+    onDragOver: (e) => {
+      if (!canDrop(target)) return
+      e.preventDefault()
+      e.stopPropagation()
+      setOver(target)
+    },
+    onDragLeave: () => setOver((o) => (o === target ? null : o)),
+    onDrop: (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      if (dragging && canDrop(target)) void nest(dragging, target)
+      setDragging(null)
+      setOver(null)
+    }
+  })
   return (
     <div>
-      <h1 className="page-title">Categories</h1>
-      {all.length === 0 && <p className="muted">No categories yet. Add them at the bottom of the page editor.</p>}
-      <ul className="category-list">
-        {all.map((c) => (
-          <li key={c}>
-            <button className="link-btn" onClick={() => go({ kind: 'category', name: c })}>
-              {c}
-            </button>
-            <span className="muted"> ({count(c)})</span>
-            {meta.categories[c]?.description && <div className="muted small">{meta.categories[c].description}</div>}
-          </li>
-        ))}
+      <div className="row gap categories-head">
+        <h1 className="page-title grow">Categories</h1>
+        <button className="btn" onClick={() => setEditor({})} title="Make a new category">
+          + New category
+        </button>
+      </div>
+      {all.length === 0 ? (
+        <p className="muted">No categories yet. Make one with + New category, or add them at the bottom of the page editor.</p>
+      ) : (
+        <p className="hint">Drag a category onto another to make it a subcategory. ✎ renames, moves or removes one.</p>
+      )}
+      <ul className="category-list category-tree">
+        {categoryTree(meta, all).map(({ name, depth }) => {
+          const desc = categoryInfo(meta, name)?.description
+          return (
+            <li
+              key={name}
+              className={'cat-item' + (over === name ? ' drop-over' : '') + (dragging === name ? ' dragging' : '')}
+              style={{ paddingLeft: depth * 22 }}
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData('text/plain', name)
+                e.dataTransfer.effectAllowed = 'move'
+                setDragging(name)
+              }}
+              onDragEnd={() => {
+                setDragging(null)
+                setOver(null)
+              }}
+              {...dropProps(name)}
+            >
+              <div className="cat-row">
+                {depth > 0 && <span className="cat-branch">↳</span>}
+                <button className="link-btn" onClick={() => go({ kind: 'category', name })}>
+                  {name}
+                </button>
+                <span className="muted">({categoryMembers(meta, list, name).length})</span>
+                <span className="cat-actions">
+                  <button className="icon-btn" title={`Add a subcategory to ${name}`} onClick={() => setEditor({ parent: name })}>
+                    +
+                  </button>
+                  <button className="icon-btn" title="Rename, move or remove" onClick={() => setEditor({ name })}>
+                    ✎
+                  </button>
+                </span>
+              </div>
+              {desc && <div className="muted small cat-desc">{desc}</div>}
+            </li>
+          )
+        })}
       </ul>
+      {dragging && parentOf(meta, dragging) && (
+        <div className={'cat-top-drop' + (over === '' ? ' drop-over' : '')} {...dropProps('')}>
+          Drop here to make “{dragging}” a top-level category
+        </div>
+      )}
       {uncategorized > 0 && <p className="muted">{uncategorized} page(s) have no category.</p>}
+      {editor && <CategoryEditor {...editor} onClose={() => setEditor(null)} />}
     </div>
   )
 }
@@ -147,21 +219,47 @@ export function CategoryView({ name }: { name: string }): React.JSX.Element {
   const meta = useStore((s) => s.meta)!
   const go = useStore((s) => s.go)
   const [editing, setEditing] = useState(false)
-  const info = meta.categories[name]
+  const [editor, setEditor] = useState<{ name?: string; parent?: string } | null>(null)
+  const info = categoryInfo(meta, name)
   const [desc, setDesc] = useState(info?.description ?? '')
-  const members = sortedPages(pages).filter((p) => p.categories.some((c) => titleKey(c) === titleKey(name)))
+  const list = sortedPages(pages)
+  const members = categoryMembers(meta, list, name)
+  const subs = childrenOf(meta, name)
+  const crumbs = ancestorsOf(meta, name).reverse()
   const grid = cardGridLook(meta.cardStyle)
+  const setInfo = (patch: Partial<CategoryInfo>): Promise<void> =>
+    useStore.getState().saveMeta(setCategory(meta, name, { ...info, description: info?.description ?? '', ...patch }))
 
   const saveDesc = async (): Promise<void> => {
-    await useStore.getState().saveMeta({ ...meta, categories: { ...meta.categories, [name]: { description: desc.trim() } } })
+    await setInfo({ description: desc })
     setEditing(false)
   }
 
   return (
     <div>
-      <h1 className="page-title">
-        <span className="muted">Category:</span> {name}
-      </h1>
+      {crumbs.length > 0 && (
+        <div className="cat-crumbs">
+          {crumbs.map((c) => (
+            <span key={c}>
+              <button className="link-btn" onClick={() => go({ kind: 'category', name: c })}>
+                {c}
+              </button>
+              {' › '}
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="row gap categories-head">
+        <h1 className="page-title grow">
+          <span className="muted">Category:</span> {name}
+        </h1>
+        <button className="btn ghost small" onClick={() => setEditor({ parent: name })} title="Make a category inside this one">
+          + Subcategory
+        </button>
+        <button className="btn ghost small" onClick={() => setEditor({ name })} title="Rename, move or remove this category">
+          ✎ Edit category
+        </button>
+      </div>
       {editing ? (
         <div className="category-desc-edit">
           <textarea rows={3} autoFocus value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="What belongs in this category?" />
@@ -177,16 +275,42 @@ export function CategoryView({ name }: { name: string }): React.JSX.Element {
       ) : (
         <p className="category-desc">
           {info?.description || <span className="muted">No description.</span>}{' '}
-          <button className="link-btn" onClick={() => setEditing(true)}>
+          <button
+            className="link-btn"
+            onClick={() => {
+              setDesc(info?.description ?? '')
+              setEditing(true)
+            }}
+          >
             {info?.description ? 'Edit' : 'Add a description'}
           </button>
         </p>
       )}
+      {subs.length > 0 && (
+        <>
+          <h3>Subcategories</h3>
+          <ul className="subcat-list">
+            {subs.map((c) => (
+              <li key={c}>
+                <button className="subcat-chip" onClick={() => go({ kind: 'category', name: c })}>
+                  {c} <span className="muted">({categoryMembers(meta, list, c).length})</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
       <div className="row gap category-cards-head">
         <h3>
-          {members.length} page{members.length === 1 ? '' : 's'} in this category
+          {members.length} page{members.length === 1 ? '' : 's'} in this category{info?.withSubPages && subs.length ? ' and its subcategories' : ''}
         </h3>
         <span className="grow" />
+        {subs.length > 0 && (
+          <label className="check small" title="List the pages in its subcategories here too">
+            <input type="checkbox" checked={!!info?.withSubPages} onChange={(e) => void setInfo({ withSubPages: e.target.checked || undefined })} />
+            Also show pages from subcategories
+          </label>
+        )}
         {members.length > 0 && <CardStyleMenu />}
       </div>
       <div className={grid.className} style={reactStyle(grid.style)}>
@@ -194,6 +318,7 @@ export function CategoryView({ name }: { name: string }): React.JSX.Element {
           <CategoryCard key={p.id} page={p} onOpen={() => go({ kind: 'page', id: p.id })} />
         ))}
       </div>
+      {editor && <CategoryEditor {...editor} onClose={() => setEditor(null)} />}
     </div>
   )
 }

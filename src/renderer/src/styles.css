@@ -771,7 +771,26 @@ textarea { resize: vertical; }
 .page-card-wrap .page-card { flex: 1; min-width: 0; }
 .page-card-adjust { position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; border: 0; border-radius: 6px; background: rgb(0 0 0 / 0.55); color: #fff; cursor: pointer; opacity: 0; transition: opacity 0.15s; font-size: 15px; }
 .page-card-wrap:hover .page-card-adjust, .page-card-adjust:focus-visible { opacity: 1; }
-.category-cards-head { align-items: center; }
+.category-cards-head { align-items: center; flex-wrap: wrap; }
+.categories-head { align-items: center; }
+.categories-head .page-title { margin-right: auto; }
+.cat-item { border-radius: 8px; padding: 4px 8px; }
+.cat-item.dragging { opacity: 0.5; }
+.cat-item.drop-over, .cat-top-drop.drop-over { background: color-mix(in srgb, var(--accent) 16%, transparent); outline: 2px dashed var(--accent); }
+.cat-row { display: flex; align-items: center; gap: 6px; }
+.cat-branch { color: var(--muted); }
+.cat-actions { display: inline-flex; gap: 2px; opacity: 0; transition: opacity 0.12s; }
+.cat-item:hover > .cat-row .cat-actions, .cat-actions:focus-within { opacity: 1; }
+.cat-actions .icon-btn { width: 26px; height: 26px; font-size: 14px; }
+.cat-desc { margin-left: 2px; }
+.cat-row .muted { font-size: 13px; }
+.cat-top-drop { margin: 8px 0; padding: 12px; border: 2px dashed var(--border); border-radius: 8px; color: var(--muted); text-align: center; }
+.cat-crumbs { font-size: 13px; color: var(--muted); margin-bottom: -6px; }
+.subcat-list { list-style: none; padding: 0; margin: 0 0 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+.subcat-chip { border: 1px solid var(--border); background: var(--panel); color: var(--text); border-radius: 999px; padding: 5px 12px; cursor: pointer; font: inherit; }
+.subcat-chip:hover { border-color: var(--accent); }
+.category-editor { max-width: 520px; }
+.category-editor textarea, .category-editor input, .category-editor select { width: 100%; }
 .card-style-menu { width: 400px; padding: 10px 12px; }
 .csm-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; flex-wrap: wrap; }
 .csm-label { width: 70px; font-size: 13px; font-weight: 600; }

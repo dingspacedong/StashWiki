@@ -45,6 +45,8 @@ interface State {
   trashPage(id: string): Promise<void>
   addRestoredPage(page: Page): Promise<void>
   saveMeta(meta: WikiMeta): Promise<void>
+  /** Save a change that touches the settings and many pages at once (renaming a category, say). */
+  saveMetaAndPages(meta: WikiMeta, pages: Page[]): Promise<void>
 }
 
 const api = window.stash
@@ -196,6 +198,18 @@ export const useStore = create<State>((set, get) => ({
     if (!wikiId) return
     await api.saveMeta(wikiId, meta)
     set({ meta })
+  },
+
+  async saveMetaAndPages(meta, changed) {
+    const { wikiId } = get()
+    if (!wikiId) return
+    const now = Date.now()
+    const stamped = changed.map((p) => ({ ...p, updatedAt: now }))
+    if (stamped.length) await api.savePages(wikiId, stamped)
+    await api.saveMeta(wikiId, meta)
+    const pages = { ...get().pages }
+    for (const p of stamped) pages[p.id] = p
+    set({ meta, pages })
   }
 }))
 

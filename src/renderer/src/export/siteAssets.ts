@@ -196,6 +196,9 @@ a:hover { text-decoration: underline; }
 .letter-group ul, .category-list { list-style: none; padding: 0; margin: 0; }
 .letter-group li { padding: 2px 0; }
 .category-list li { padding: 5px 0; }
+.cat-crumbs { font-size: 13px; color: var(--muted); margin-bottom: -6px; }
+.subcat-list { list-style: none; padding: 0; margin: 0 0 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+.subcat-list li { border: 1px solid var(--border); background: var(--panel); border-radius: 999px; padding: 5px 12px; }
 .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 14px; margin-top: 10px; }
 .page-card { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--panel); text-align: center; text-decoration: none !important; }
 .page-card:hover { border-color: var(--link); }

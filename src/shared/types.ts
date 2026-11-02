@@ -155,6 +155,10 @@ export interface ChapterInfo {
 
 export interface CategoryInfo {
   description: string
+  /** The category this one is a subcategory of. */
+  parent?: string
+  /** Its page also lists the pages in its subcategories. */
+  withSubPages?: boolean
 }
 
 export interface WikiMeta {
