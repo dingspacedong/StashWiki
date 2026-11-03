@@ -25,6 +25,7 @@ import NavigationView from './views/NavigationView'
 import { AiPanel, useAi } from './ai/gate'
 import { usePrefs } from './lib/prefs'
 import { shownLogo, useMix, useMixUp, withMixedTheme } from './lib/mixUp'
+import FindBar from './components/FindBar'
 
 export default function Shell(): React.JSX.Element {
   const simple = usePrefs((s) => s.simple)
@@ -83,6 +84,7 @@ export default function Shell(): React.JSX.Element {
   return (
     <div className="app" style={vars as React.CSSProperties}>
       {customCss && <style id="sw-custom-css">{customCss}</style>}
+      <FindBar />
       <div className="backdrop" />
       <header className="topbar">
         <div className="history-btns">

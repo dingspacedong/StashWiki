@@ -1454,3 +1454,14 @@ html.sw-focus .chapter-extras { display: none; }
 .navbox-node .pcn-bar select { max-width: 220px; }
 .nbn-preview { padding: 8px 4px 0; }
 .nbn-hint { padding: 4px 4px 2px; }
+
+/* Ctrl+F */
+.find-bar { position: fixed; bottom: 24px; right: 28px; z-index: 170; display: flex; align-items: center; gap: 4px; padding: 6px 6px 6px 10px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 28px rgb(0 0 0 / 0.22); font-family: var(--font-body); }
+.find-bar input { width: 220px; border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; font: inherit; font-size: 14px; background: var(--surface); color: var(--text); }
+.find-bar .find-count { min-width: 64px; font-size: 12.5px; color: var(--muted); text-align: center; white-space: nowrap; }
+.find-bar .find-count.none { color: var(--redlink); }
+.find-bar .icon-btn { width: 28px; height: 28px; }
+/* Out of the way of the buddy's chat box. */
+.app:has(.ai-panel) .find-bar { right: 420px; }
+::highlight(find-all) { background-color: #ffe36e; color: #1a1a1a; }
+::highlight(find-current) { background-color: #ff9632; color: #1a1a1a; }

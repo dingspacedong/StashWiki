@@ -5,6 +5,7 @@ import { themeVars } from '../lib/theme'
 import { formatDate } from '../components/ui'
 import { isMac } from '../lib/platform'
 import { startImport } from '../share/importFlow'
+import FindBar from '../components/FindBar'
 
 export default function LibraryScreen(): React.JSX.Element {
   const library = useStore((s) => s.library)!
@@ -35,6 +36,7 @@ export default function LibraryScreen(): React.JSX.Element {
 
   return (
     <div className="library" style={themeVars(DEFAULT_THEME) as React.CSSProperties}>
+      <FindBar />
       <div className="library-card">
         <div className="library-brand">
           <img className="library-logo" src="logo.png" alt="" />
