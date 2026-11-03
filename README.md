@@ -71,6 +71,7 @@
 
 ### Optional AI writing buddy (off and hidden unless you turn it on)
 - Brainstorms, writes and suggests changes as cards you **Apply** or **Undo**. Nothing changes until you say so.
+- Optional, experimental **Knows how StashWiki works** switch: it learns how the app works and can also suggest changes to categories and subcategories, gallery captions and spoilers, nav boxes, sidebar sections, notes at the top, quotes, tip/warning/spoiler boxes, private pages and new stories. Your settings and looks stay yours.
 - On stories: **Write with me** (it continues the scene in your style), **Suggest** (ideas, feedback, "does this fit my wiki?") and **Summarize** (chapter summaries and blurbs). Its "thinking" text never ends up in your writing.
 - Works with NanoGPT, OpenRouter, Google Gemini, OpenAI, DeepSeek, Mistral, Groq, any OpenAI-compatible service, or a **model on your own computer** (LM Studio, Ollama, KoboldCpp, text-generation-webui, llama.cpp, Jan).
 - Don't want AI at all? Download a **No-AI** version: the writing buddy isn't just hidden there, it isn't included at all.

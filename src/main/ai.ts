@@ -13,6 +13,7 @@ interface Stored {
   model: string
   temperature: number
   shortContext: boolean
+  wikiTools: boolean
   localHost: string
   localProgram: LocalProgram
   /** The API key, encrypted with the OS keystore (DPAPI on Windows, Keychain on macOS) when available. */
@@ -28,6 +29,7 @@ const DEFAULTS: Stored = {
   model: '',
   temperature: 0.8,
   shortContext: false,
+  wikiTools: false,
   localHost: 'localhost',
   localProgram: 'lmstudio'
 }
@@ -52,6 +54,7 @@ function publicView(s: Stored): AiSettings {
     model: s.model,
     temperature: s.temperature,
     shortContext: s.shortContext,
+    wikiTools: s.wikiTools,
     localHost: s.localHost,
     localProgram: s.localProgram,
     hasKey: !!s.key,
@@ -219,6 +222,7 @@ export function registerAiIpc(): void {
     if (typeof patch.baseUrl === 'string') next.baseUrl = patch.baseUrl.trim()
     if (typeof patch.model === 'string') next.model = patch.model.trim()
     if (typeof patch.shortContext === 'boolean') next.shortContext = patch.shortContext
+    if (typeof patch.wikiTools === 'boolean') next.wikiTools = patch.wikiTools
     if (typeof patch.temperature === 'number') next.temperature = Math.min(2, Math.max(0, patch.temperature))
     if (!next.enabled) for (const c of running.values()) c.abort()
     await writeJson(file(), next)

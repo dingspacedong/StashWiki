@@ -69,7 +69,12 @@ Navigation (`lib/navigation.ts`, Wiki tools → Navigation): `meta.sidebar` hold
 `meta.navboxes` its nav boxes. A page stores only `<div data-navbox="id">`, so a box is drawn from the wiki's settings
 wherever it shows (`renderBody`'s `navbox` callback); boxes with `showOn` categories are also added at the bottom of
 pages in those categories. `meta.myBlocks` are fancy blocks saved for reuse. Fancy blocks, page cards and nav boxes are
-never rewritten as text by the writing buddy (`keepBlocks` / `toBodyHtml` in `ai/proposals.ts`).
+never rewritten as text by the writing buddy, and neither are pictures in the text (`keepBlocks` / `toBodyHtml` in
+`ai/proposals.ts`).
+
+Categories (`lib/categories.ts`): a category is any name on a page, a template or in `meta.categories`, whose entries
+hold a description, an optional `parent` (making it a subcategory) and `withSubPages`. Renaming or removing one goes
+through `renameCategory` / `removeCategory`, which also update templates, sidebar links and nav boxes.
 
 ## Stories
 
@@ -83,6 +88,11 @@ themselves (`lib/useAutosave.ts`).
 Talks to any OpenAI-compatible `/chat/completions` endpoint from the main process (`main/ai.ts`). The model proposes
 changes as fenced ` ```stashwiki ` JSON blocks (`ai/proposals.ts`), shown as cards with Apply / Dismiss / Undo.
 Thinking text from reasoning models is removed (`stripThinking` in `shared/ai.ts`).
+
+The **Knows how StashWiki works** setting (`wikiTools`, off by default) adds a guide to the app and more of the wiki to
+the prompt (categories, sidebar, nav boxes, galleries, pictures and boxes in the text; `ai/context.ts`), and lets
+replies use the extra actions in `TOOL_ACTIONS` plus the extra `update_page` parts in `TOOL_PAGE_KEYS`. With it off,
+those are ignored, so the prompt and the cards are exactly as before. A reply remembers the setting it was sent with.
 
 The rest of the app reaches the buddy only through `ai/gate.ts`. Builds with `STASHWIKI_AI=0` swap that file for
 `noai/gate.ts`, so the No-AI versions contain none of the buddy's code.

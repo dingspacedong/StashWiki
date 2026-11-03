@@ -231,6 +231,16 @@ export default function AiSettingsSection(): React.JSX.Element | null {
             <input type="checkbox" checked={settings.shortContext} onChange={(e) => void save({ shortContext: e.target.checked })} />
             Send less at once <span className="muted">(for small local models that lose track or run out of room)</span>
           </label>
+          <label className="check">
+            <input type="checkbox" checked={settings.wikiTools} onChange={(e) => void save({ wikiTools: e.target.checked })} />
+            <span>
+              Knows how StashWiki works <span className="badge tiny">Experimental</span>{' '}
+              <span className="muted">
+                (it’s told about categories, galleries, nav boxes, the sidebar and stories, and can suggest changes to them. Off: it only works on page
+                text, infoboxes, templates and CSS, as before)
+              </span>
+            </span>
+          </label>
           <div className="row gap ai-test-row">
             <button className="btn small" disabled={!isReady(settings)} onClick={() => void runTest()}>
               Test connection

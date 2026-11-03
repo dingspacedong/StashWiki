@@ -206,6 +206,13 @@ export default function AiPanel(): React.JSX.Element {
         )}
       </label>
       <ContextPicker />
+      {settings && (
+        <label className="ai-context ai-tools" title="Experimental: tell it how categories, galleries, nav boxes, the sidebar and stories work, so it can suggest changes to them too">
+          <input type="checkbox" checked={settings.wikiTools} onChange={(e) => void useAi.getState().saveSettings({ wikiTools: e.target.checked })} />
+          <span>Knows how StashWiki works</span>
+          <span className="badge tiny">Experimental</span>
+        </label>
+      )}
 
       {storyPage && (
         <div className="story-helper">
@@ -321,7 +328,7 @@ function Message({ m }: { m: ChatMessage }): React.JSX.Element {
 
   let n = 0
   const { text: shown, thinking } = stripThinking(m.content)
-  const segs = splitReply(shown)
+  const segs = splitReply(shown, !!m.tools)
   // In "write with me", some models skip the block and just write. Their prose can still be added.
   const loose =
     !m.streaming && m.mode === 'write' && m.target && !segs.some((s) => s.kind !== 'text')
@@ -558,6 +565,21 @@ function Preview({ p, exists }: { p: Proposal; exists: (t: string) => boolean })
       {p.action === 'write_chapter' && <div className="prose ai-prose" dangerouslySetInnerHTML={{ __html: html(p.html) }} />}
       {p.action === 'set_summary' && <p className="ai-summary">{p.summary}</p>}
       {(p.action === 'update_template' || p.action === 'create_template') && <pre className="ai-json">{JSON.stringify(p, null, 2)}</pre>}
+      {p.action === 'update_page' && p.notes?.length ? <div className="muted small">Notes at the top: {p.notes.join(' · ')}</div> : null}
+      {p.action === 'update_page' && p.quote?.text ? (
+        <div className="muted small">
+          Opening quote: “{p.quote.text}”{p.quote.by ? ` — ${p.quote.by}` : ''}
+        </div>
+      ) : null}
+      {p.action === 'update_page' && p.add_cards?.pages.length ? (
+        <div className="muted small">
+          Page cards{p.add_cards.title ? ` “${p.add_cards.title}”` : ''}: {p.add_cards.pages.join(', ')}
+        </div>
+      ) : null}
+      {p.action === 'create_story' && p.chapter?.html && <div className="prose ai-prose" dangerouslySetInnerHTML={{ __html: html(p.chapter.html) }} />}
+      {['update_gallery', 'update_category', 'update_navbox', 'update_sidebar', 'create_story', 'update_story'].includes(p.action) && (
+        <pre className="ai-json">{JSON.stringify({ ...p, action: undefined, chapter: undefined }, null, 2)}</pre>
+      )}
     </div>
   )
 }

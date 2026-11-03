@@ -1033,6 +1033,7 @@ textarea { resize: vertical; }
 .ai-model { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px; }
 .ai-context { display: flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 12.5px; background: var(--panel); border-bottom: 1px solid var(--border); cursor: pointer; }
 .ai-context span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ai-context .badge { flex-shrink: 0; margin-left: 0; }
 .ai-messages { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
 .ai-empty, .ai-notice { font-size: 13.5px; }
 .ai-empty p { margin: 0 0 8px; }

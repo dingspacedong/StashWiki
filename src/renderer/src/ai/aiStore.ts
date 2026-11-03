@@ -23,6 +23,8 @@ export interface ChatMessage {
   /** For replies about a story: which helper mode asked, and the story or chapter it was about. */
   mode?: StoryMode
   target?: string
+  /** Sent while the buddy knew how StashWiki works, so its other kinds of change are understood. */
+  tools?: boolean
 }
 
 export interface CardState {
@@ -137,14 +139,14 @@ export const useAi = create<AiState>((set, get) => ({
       .map((m) => ({ role: m.role, content: m.role === 'assistant' ? stripThinking(m.content).text : m.content }))
     const storyPage = page && (page.story || page.chapter) ? page : null
     const story = storyPage ? { mode: get().storyMode, length: get().writeLength } : undefined
-    const messages: AiMessage[] = [{ role: 'system', content: systemPrompt(meta, pages, page, short, extra, story) }, ...history, { role: 'user', content }]
+    const messages: AiMessage[] = [{ role: 'system', content: systemPrompt(meta, pages, page, short, extra, story, !!get().settings?.wikiTools) }, ...history, { role: 'user', content }]
     const id = uid()
     set({
       busyId: id,
       messages: [
         ...get().messages,
         { id: uid(), role: 'user', content },
-        { id, role: 'assistant', content: '', streaming: true, mode: story?.mode, target: storyPage?.title }
+        { id, role: 'assistant', content: '', streaming: true, mode: story?.mode, target: storyPage?.title, tools: !!get().settings?.wikiTools }
       ]
     })
     try {
@@ -177,7 +179,7 @@ export const useAi = create<AiState>((set, get) => ({
     const s = useStore.getState()
     if (s.route.kind === 'edit') {
       const editing = s.pages[s.route.id]?.title ?? s.route.draft?.title ?? ''
-      const touches = touchedTitles(p).some((t) => titleKey(t) === titleKey(editing))
+      const touches = touchedTitles(p, s.pages).some((t) => titleKey(t) === titleKey(editing))
       // Self-saving editors (chapters, story details) save first and then show the change.
       if (touches && isOpenInAutosave(s.route.id)) await flushEditor(s.route.id)
       else if (touches) {
@@ -194,6 +196,7 @@ export const useAi = create<AiState>((set, get) => ({
     }
     const prevTemplates = s.meta!.templates
     const prevCss = s.meta!.customCss
+    const { categories: prevCategories, sidebar: prevSidebar, navboxes: prevNavboxes } = s.meta!
     const prevPages = result.pages.map((pg) => useStore.getState().pages[pg.id]).filter((x): x is Page => !!x)
 
     if (result.meta) await useStore.getState().saveMeta(result.meta)
@@ -209,7 +212,8 @@ export const useAi = create<AiState>((set, get) => ({
 
     const undo = async (): Promise<void> => {
       const st = useStore.getState()
-      if (result.meta) await st.saveMeta({ ...st.meta!, templates: prevTemplates, customCss: prevCss })
+      if (result.meta)
+        await st.saveMeta({ ...st.meta!, templates: prevTemplates, customCss: prevCss, categories: prevCategories, sidebar: prevSidebar, navboxes: prevNavboxes })
       for (const id of result.created) if (st.pages[id]) await useStore.getState().trashPage(id)
       for (const prev of prevPages) {
         const cur = useStore.getState().pages[prev.id]

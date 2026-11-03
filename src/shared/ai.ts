@@ -62,6 +62,8 @@ export interface AiSettings {
   temperature: number
   /** Send less of the wiki along, for small local models. */
   shortContext: boolean
+  /** Tell it how StashWiki works and let it suggest changes to categories, galleries, nav boxes, the sidebar, stories… */
+  wikiTools: boolean
   /** For “local”: the computer running the model, and which program. */
   localHost: string
   localProgram: LocalProgram

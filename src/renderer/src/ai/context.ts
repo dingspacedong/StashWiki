@@ -1,10 +1,11 @@
 // What the writing buddy is told about the wiki. Only built (and sent) when the user sends a message.
-import type { Page, WikiMeta } from '@shared/types'
+import type { NavLink, Page, WikiMeta } from '@shared/types'
 import { pageFields } from '../lib/fields'
 import { decodeEntities, titleKey } from '../lib/wikitext'
 import { parseCards } from '../lib/cardsData'
 import { decodeHtmlBlock } from '../lib/customHtml'
 import { storyChapters } from '../lib/stories'
+import { categoryInfo, categoryMembers, categoryTree } from '../lib/categories'
 import type { StoryMode, WriteLength } from './aiStore'
 
 /** How much of the wiki to send: small local models only have room for a little. */
@@ -15,8 +16,25 @@ const LIMITS = {
 
 const cut = (s: string, max: number): string => (s.length > max ? s.slice(0, max) + '\n/* …(rest cut off) */' : s)
 
-/** Page HTML as plain, readable text with headings and [[links]] kept. */
-export function bodyToText(html: string): string {
+const BOX = (kind: string): string => kind.charAt(0).toUpperCase() + kind.slice(1) + ' box'
+
+/**
+ * Page HTML as plain, readable text with headings and [[links]] kept. With `full` (the buddy knows how StashWiki
+ * works), pictures, boxes and which nav box it is are shown too.
+ */
+export function bodyToText(html: string, full?: { meta: WikiMeta }): string {
+  if (full) {
+    html = html
+      .replace(/<div[^>]*data-navbox="([^"]*)"[^>]*>(<\/div>)?/g, (_m, id: string) => {
+        const box = full.meta.navboxes?.find((b) => b.id === decodeEntities(id))
+        return box ? `\n[Nav box: ${box.title}]\n` : ''
+      })
+      .replace(/<img\b[^>]*>/g, (tag) => {
+        const cap = decodeEntities(tag.match(/data-caption="([^"]*)"/)?.[1] ?? '').trim()
+        return `\n[Picture${cap ? ': ' + cap : ''}]\n`
+      })
+      .replace(/<div[^>]*data-callout="(\w+)"[^>]*>([\s\S]*?)<\/div>/g, (_m, kind: string, inner: string) => `\n[${BOX(kind)}]\n${inner}\n[/${BOX(kind)}]\n`)
+  }
   return decodeEntities(
     html
       .replace(/<a\b[^>]*data-wikilink="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g, (_m, t: string, text: string) => {
@@ -41,10 +59,11 @@ export function bodyToText(html: string): string {
     .trim()
 }
 
-function describePage(page: Page, meta: WikiMeta, maxChars: number): string {
+function describePage(page: Page, meta: WikiMeta, maxChars: number, full = false): string {
   const template = meta.templates.find((t) => t.id === page.templateId)
   const lines = [`Title: ${page.title}`, `Type: ${template?.name ?? 'plain page (no infobox)'}`]
   if (page.categories.length) lines.push(`Categories: ${page.categories.join(', ')}`)
+  if (full && page.private) lines.push('Private page (left out of exported websites)')
   for (const n of page.hatnotes ?? []) if (n.trim()) lines.push(`Note at the top: ${n.trim()}`)
   if (page.quote?.text.trim()) lines.push(`Opening quote: “${page.quote.text.trim()}”${page.quote.by.trim() ? ` — ${page.quote.by.trim()}` : ''}`)
   if (template) {
@@ -55,9 +74,18 @@ function describePage(page: Page, meta: WikiMeta, maxChars: number): string {
       else lines.push(`  ${f.label}: ${page.infobox[f.id]?.trim() || '(empty)'}`)
     }
   }
-  let text = bodyToText(page.body).replace(/‹/g, '<').replace(/›/g, '>')
+  let text = bodyToText(page.body, full ? { meta } : undefined).replace(/‹/g, '<').replace(/›/g, '>')
   if (text.length > maxChars) text = text.slice(0, maxChars) + '\n…(rest of the page cut off)'
   lines.push('Text:', text || '(empty)')
+  if (full && page.galleries.length) {
+    lines.push('Galleries (at the bottom of the page):')
+    page.galleries.forEach((g, i) => {
+      lines.push(`  ${i + 1}. "${g.title || 'Gallery'}"${g.spoiler ? ' (whole gallery is a spoiler)' : ''}: ${g.images.length} picture${g.images.length === 1 ? '' : 's'}`)
+      g.images.forEach((im, n) =>
+        lines.push(`     ${n + 1}) ${im.caption.trim() || '(no caption)'}${im.source.trim() ? ` — credit: ${im.source.trim()}` : ''}${im.spoiler ? ' (spoiler)' : ''}`)
+      )
+    })
+  }
   if (page.customCss?.trim()) lines.push('Custom CSS for this page:', cut(page.customCss, Math.round(maxChars / 3)))
   return lines.join('\n')
 }
@@ -73,6 +101,67 @@ const CSS_HELP = `Custom CSS and HTML blocks (for people who ask for looks or ef
 - Pages show their HTML blocks as [HTML block: …]. To change one, send its whole new HTML back in that same [HTML block: …] form where it goes in the section's text. Blocks you leave out stay on the page as they are.
 - Show CSS and HTML only inside the blocks, never as loose code in your message.`
 
+const TOOL_FORMATS = `- update_page also takes: "remove_categories":["…"], "notes":["For the pup, see [[Pip]]."] (the notes at the top of the page; replaces them all, [] removes them), "quote":{"text":"…","by":"…"} (the opening quote; null removes it), "private":true|false, "add_navbox":"<nav box title>" (puts that nav box at the end of the page), "add_cards":{"title":"Characters","pages":["<page title>","…"],"section":"<heading, optional>"} (picture cards linking to pages)
+- {"action":"update_gallery","page":"…","gallery":"<gallery title or number>","title":"<new title>","spoiler":true|false,"images":[{"n":1,"caption":"…","credit":"…","spoiler":true|false}],"order":[3,1,2],"remove_images":[2],"remove":true}  (only what changes; pictures are numbered as listed)
+- {"action":"update_category","name":"…","rename":"<new name>","description":"…","parent":"<the category it goes inside; empty for top level>","show_subcategory_pages":true|false}  (makes the category if it doesn't exist; renaming changes it on every page)
+- {"action":"remove_category","name":"…"}  (takes it off every page; the pages stay)
+- {"action":"update_navbox","title":"…","rename":"…","rows":[{"label":"Family","pages":["<page title>"],"category":"<also every page in this category, optional>"}],"show_on":["<category>"],"remove":true}  (makes it if it doesn't exist; "rows" replaces all its rows)
+- {"action":"update_sidebar","section":"<section header>","rename":"…","links":[{"label":"…","target":"<page title, Category:Name, or https://…>","list_pages":true,"links":[<sub-links, same shape>]}],"mode":"replace"|"append","remove":true}  (makes the section if it doesn't exist)
+- {"action":"create_story","title":"…","summary":"…","status":"wip"|"complete"|"hiatus","rating":""|"general"|"teen"|"mature"|"explicit","tags":["…"],"warnings":["…"],"characters":["<character page titles>"],"series":"…","series_part":1,"chapter":{"name":"…","html":"<p>…</p>"}}
+- {"action":"update_story","story":"<story title>", and any create_story details to change (lists replace the old ones)}`
+
+const TOOLS_GUIDE = `How StashWiki works (you can suggest changes to all of this with the formats above; the person applies them):
+- A page can have an infobox (from its template), notes at the top, an opening quote, an introduction, sections (the ## headings), galleries at the bottom, and categories.
+- In page text, [Picture: caption] is a picture, and [Nav box: Title], [Page cards: …] and [HTML block: …] are blocks. They stay where they are when you rewrite the text around them; you can't add pictures. Boxes look like [Tip box] … [/Tip box] (also Note, Warning and Spoiler; spoiler boxes stay blurred until clicked). To add or keep a box, write it the same way inside your html.
+- Categories group pages, and a category can be inside another (a subcategory). A category's page lists its pages, and its subcategories' pages too when "show_subcategory_pages" is on.
+- Nav boxes are boxes of related links at the bottom of pages, set up once and shown on many: put one on a page with add_navbox, or have it show by itself on every page in its "show_on" categories. A row can list a category's pages by itself.
+- The sidebar has the wiki's own sections under the built-in Navigation: a header with links, and a link can fold out sub-links or list a category's pages.
+- Galleries hold the person's pictures with captions and credits; one picture or a whole gallery can be a spoiler. You can change captions, credits, spoilers, order and titles, and remove pictures, but not add them.
+- Stories are pages with chapters; a chapter's page title is "Story: Chapter name". Private pages and draft chapters are left out of exported websites.
+- You can't change the wiki's settings (its name, logo, colors and looks, main page, updates). For those, point the person to Look & settings.
+- If asked how to do something in the app: the Categories page has "+ New category"; hover a category for + (add a subcategory) and ✎ (rename, move, remove), or drag one onto another. Navigation (under Wiki tools) sets up sidebar sections and nav boxes. In the page editor, the Insert menu adds boxes, page cards, nav boxes, fancy blocks, tables and pictures, and galleries are at the bottom. Stories (in the sidebar) has the shelf and "New story".`
+
+const linkLine = (l: NavLink): string =>
+  `${l.label || l.target}${l.label && l.target && l.label !== l.target ? ` (→ ${l.target})` : ''}${l.listPages ? ' [lists its pages]' : ''}${l.children?.length ? ` > ${l.children.map(linkLine).join(', ')}` : ''}`
+
+/** Categories, the sidebar, nav boxes, stories and private pages, for a buddy that knows how StashWiki works. */
+function wikiOverview(meta: WikiMeta, pages: Record<string, Page>, max: number): string {
+  const all = Object.values(pages)
+  const names = new Map<string, string>()
+  const add = (c: string): void => void (names.has(titleKey(c)) || names.set(titleKey(c), c))
+  all.forEach((p) => p.categories.forEach(add))
+  Object.keys(meta.categories).forEach(add)
+  meta.templates.forEach((t) => t.categories.forEach(add))
+  const parts: string[] = []
+  const tree = categoryTree(meta, [...names.values()])
+  if (tree.length)
+    parts.push(
+      'Categories (indented ones are subcategories; number of pages):\n' +
+        tree
+          .map(({ name, depth }) => {
+            const info = categoryInfo(meta, name)
+            return `${'  '.repeat(depth)}- ${name} (${categoryMembers(meta, all, name).length})${info?.withSubPages ? ' [shows subcategory pages]' : ''}${info?.description ? `: ${info.description}` : ''}`
+          })
+          .join('\n')
+    )
+  if (meta.sidebar?.length) parts.push('Sidebar sections:\n' + meta.sidebar.map((s) => `- "${s.title}": ${s.links.map(linkLine).join('; ') || '(no links)'}`).join('\n'))
+  if (meta.navboxes?.length)
+    parts.push(
+      'Nav boxes:\n' +
+        meta.navboxes
+          .map(
+            (b) =>
+              `- "${b.title}": ${b.groups.map((g) => `${g.label || '(no label)'}: ${[...g.pages, ...(g.category ? [`every page in ${g.category}`] : [])].join(', ') || '(empty)'}`).join(' | ') || '(no rows)'}${b.showOn?.length ? `; shown by itself on pages in: ${b.showOn.join(', ')}` : ''}`
+          )
+          .join('\n')
+    )
+  const stories = all.filter((p) => p.story).map((p) => p.title)
+  if (stories.length) parts.push(`Stories: ${stories.sort().join(' | ')}`)
+  const hidden = all.filter((p) => p.private && !p.chapter).map((p) => p.title)
+  if (hidden.length) parts.push(`Private pages: ${hidden.sort().join(' | ')}`)
+  return cut(parts.join('\n\n'), max)
+}
+
 /** `extra`: more pages the user chose (or let it find) for the buddy to read. */
 export function systemPrompt(
   meta: WikiMeta,
@@ -80,7 +169,9 @@ export function systemPrompt(
   current: Page | null,
   short = false,
   extra: Page[] = [],
-  story?: { mode: StoryMode; length: WriteLength }
+  story?: { mode: StoryMode; length: WriteLength },
+  /** Tell it how StashWiki works and about its other changes (categories, galleries, nav boxes…). Off: as before. */
+  tools = false
 ): string {
   const limit = LIMITS[short ? 'short' : 'normal']
   const titles = Object.values(pages)
@@ -94,7 +185,7 @@ export function systemPrompt(
 
   // Small local models get only what applies here: CSS help in full context, story formats on stories.
   const onStory = !!(current?.story || current?.chapter)
-  const formats = [short ? '' : CSS_FORMATS, onStory ? STORY_FORMATS : ''].filter(Boolean).join('\n')
+  const formats = [short ? '' : CSS_FORMATS, onStory || tools ? STORY_FORMATS : '', tools ? TOOL_FORMATS : ''].filter(Boolean).join('\n')
   const cssHelp = short ? '' : CSS_HELP + '\n\n'
   return `You are the writing buddy inside StashWiki, a private wiki app someone uses for their own creative projects (original characters, AUs, stories, worldbuilding). Be a warm, encouraging, creative collaborator: brainstorm, suggest ideas, continue writing in the user's voice and tense, stay consistent with what the wiki already says, and ask a short question when something important is unclear. The wiki is the source of truth for its world; don't contradict it.
 
@@ -121,7 +212,7 @@ Rules for changes:
 - To fix or reword a few sentences, use "edits": each "find" is text copied exactly from the page as it is now (a sentence or a short paragraph), "replace" is what goes there instead.
 - "heading" is the section's heading exactly as on the page (without the ##).
 
-${cssHelp}Never write out your reasoning, plans or notes to yourself — only the answer and the change blocks.
+${cssHelp}${tools ? TOOLS_GUIDE + '\n\n' : ''}Never write out your reasoning, plans or notes to yourself — only the answer and the change blocks.
 
 Writing rules for html: use <p>, <h3>, <ul><li>, <strong>, <em>, <blockquote>. Never use <h1> or <h2> inside section html (sections are the <h2> headings). Link other pages with [[Page title]] or [[Page title|shown text]]. Infobox values are plain text and may use [[links]]; an infobox label the page doesn't have yet is added to that page only.
 
@@ -129,17 +220,17 @@ Wiki: "${meta.name}"
 Templates (page types):
 ${templates || '(none)'}
 Pages (${titles.length}): ${shown.join(' | ')}${titles.length > shown.length ? ' | …' : ''}
-
-${meta.customCss?.trim() ? `Custom CSS for the whole wiki${meta.customCssOff ? ' (switched off right now)' : ''}:\n${cut(meta.customCss, limit.css)}\n\n` : ''}${current && (current.story || current.chapter) ? storyContext(current, pages, meta, short, story) : current ? `The user is looking at this page:\n${describePage(current, meta, limit.page)}` : 'The user is not looking at a particular page right now.'}${extraPages(extra, current, meta, limit)}`
+${tools ? '\n' + wikiOverview(meta, pages, short ? 2500 : 8000) + '\n' : ''}
+${meta.customCss?.trim() ? `Custom CSS for the whole wiki${meta.customCssOff ? ' (switched off right now)' : ''}:\n${cut(meta.customCss, limit.css)}\n\n` : ''}${current && (current.story || current.chapter) ? storyContext(current, pages, meta, short, story) : current ? `The user is looking at this page:\n${describePage(current, meta, limit.page, tools)}` : 'The user is not looking at a particular page right now.'}${extraPages(extra, current, meta, limit, tools)}`
 }
 
 /** The extra pages, each cut to fit, until the total budget runs out. */
-function extraPages(extra: Page[], current: Page | null, meta: WikiMeta, limit: { extra: number; extraTotal: number }): string {
+function extraPages(extra: Page[], current: Page | null, meta: WikiMeta, limit: { extra: number; extraTotal: number }, full = false): string {
   let budget = limit.extraTotal
   const parts: string[] = []
   for (const p of extra) {
     if (p.id === current?.id || budget <= 300) continue
-    const text = describePage(p, meta, Math.min(limit.extra, budget))
+    const text = describePage(p, meta, Math.min(limit.extra, budget), full)
     budget -= text.length
     parts.push(text)
   }

@@ -1,12 +1,14 @@
 // The writing buddy never edits the wiki itself. It proposes changes as JSON in ```stashwiki blocks;
 // each becomes a card the user can Apply or Dismiss. This file parses those blocks and works out the result.
 import { escapeHtml, newPage, uid } from '@shared/defaults'
-import type { FieldType, Page, Template, TemplateField, WikiMeta } from '@shared/types'
+import type { FieldType, Gallery, NavLink, Navbox, NavSection, Page, StoryInfo, Template, TemplateField, WikiMeta } from '@shared/types'
 import { addField, pageFields } from '../lib/fields'
 import { cleanTitle, titleKey } from '../lib/wikitext'
 import { bodyToText } from './context'
 import { htmlBlockTag } from '../lib/customHtml'
-import { makeChapter, storyChapters, wordCount } from '../lib/stories'
+import { emptyStory, makeChapter, makeStory, storyChapters, wordCount } from '../lib/stories'
+import { canNestUnder, categoryInfo, removeCategory, renameCategory, setCategory } from '../lib/categories'
+import { navboxTag } from '../lib/navigation'
 import { stripThinking } from '@shared/ai'
 
 export type EditMode = 'append' | 'replace'
@@ -48,6 +50,17 @@ export type Proposal =
       html_block?: { html: string; section?: string }
       infobox?: Record<string, string>
       add_categories?: string[]
+      // The rest only when the buddy knows how StashWiki works (see TOOL_ACTIONS).
+      remove_categories?: string[]
+      /** The notes at the top of the page (all of them; [] removes them). */
+      notes?: string[]
+      /** The opening quote; null removes it. */
+      quote?: { text: string; by: string } | null
+      private?: boolean
+      /** A nav box (by title) to put at the end of the page. */
+      add_navbox?: string
+      /** Picture cards linking to pages, at the end or under a section. */
+      add_cards?: { title: string; pages: string[]; section?: string }
     }
   | {
       action: 'update_template'
@@ -88,10 +101,73 @@ export type Proposal =
       sections?: string[]
       categories?: string[]
     }
+  | {
+      action: 'update_gallery'
+      page: string
+      /** Its title or number (1 = first); may be left out when the page has one gallery. */
+      gallery?: string
+      title?: string
+      spoiler?: boolean
+      /** By number as listed (1 = first picture). */
+      images?: { n: number; caption?: string; credit?: string; spoiler?: boolean }[]
+      order?: number[]
+      remove_images?: number[]
+      remove?: boolean
+    }
+  | {
+      action: 'update_category'
+      name: string
+      rename?: string
+      description?: string
+      /** The category it goes inside; '' for top level. */
+      parent?: string
+      show_subcategory_pages?: boolean
+    }
+  | { action: 'remove_category'; name: string }
+  | {
+      action: 'update_navbox'
+      title: string
+      rename?: string
+      rows?: { label: string; pages: string[]; category?: string }[]
+      show_on?: string[]
+      remove?: boolean
+    }
+  | {
+      action: 'update_sidebar'
+      section: string
+      rename?: string
+      links?: SidebarLink[]
+      mode?: EditMode
+      remove?: boolean
+    }
+  | ({ action: 'create_story'; title: string; chapter?: { name?: string; html: string } } & StoryDetails)
+  | ({ action: 'update_story'; story: string } & StoryDetails)
+
+export interface SidebarLink {
+  label: string
+  target: string
+  list_pages?: boolean
+  links?: SidebarLink[]
+}
+
+export interface StoryDetails {
+  summary?: string
+  status?: StoryInfo['status']
+  rating?: StoryInfo['rating']
+  tags?: string[]
+  warnings?: string[]
+  characters?: string[]
+  series?: string
+  series_part?: number
+}
 
 export type Segment = { kind: 'text'; text: string } | { kind: 'proposal'; proposal: Proposal } | { kind: 'bad'; raw: string; error: string }
 
 const ACTIONS = new Set(['create_page', 'update_page', 'update_template', 'create_template', 'update_css', 'write_chapter', 'set_summary'])
+/** Only offered when the buddy knows how StashWiki works (the wikiTools setting). */
+const TOOL_ACTIONS = new Set(['update_gallery', 'update_category', 'remove_category', 'update_navbox', 'update_sidebar', 'create_story', 'update_story'])
+/** update_page parts that also need it. */
+const TOOL_PAGE_KEYS = ['remove_categories', 'notes', 'quote', 'private', 'add_navbox', 'add_cards'] as const
 /** Other names models use for the actions. */
 const ACTION_ALIASES: Record<string, string> = {
   edit_page: 'update_page',
@@ -134,12 +210,45 @@ const ACTION_ALIASES: Record<string, string> = {
   set_chapter_summary: 'set_summary',
   set_story_summary: 'set_summary',
   add_html: 'update_page',
-  new_template: 'create_template'
+  new_template: 'create_template',
+  edit_gallery: 'update_gallery',
+  gallery: 'update_gallery',
+  set_gallery: 'update_gallery',
+  create_category: 'update_category',
+  add_category: 'update_category',
+  new_category: 'update_category',
+  edit_category: 'update_category',
+  rename_category: 'update_category',
+  set_category: 'update_category',
+  move_category: 'update_category',
+  delete_category: 'remove_category',
+  create_navbox: 'update_navbox',
+  add_navbox: 'update_navbox',
+  edit_navbox: 'update_navbox',
+  update_nav_box: 'update_navbox',
+  create_nav_box: 'update_navbox',
+  navbox: 'update_navbox',
+  remove_navbox: 'update_navbox',
+  delete_navbox: 'update_navbox',
+  sidebar: 'update_sidebar',
+  edit_sidebar: 'update_sidebar',
+  update_sidebar_section: 'update_sidebar',
+  add_sidebar_section: 'update_sidebar',
+  create_sidebar_section: 'update_sidebar',
+  new_story: 'create_story',
+  add_story: 'create_story',
+  start_story: 'create_story',
+  edit_story: 'update_story',
+  update_story_details: 'update_story',
+  set_story_details: 'update_story'
 }
 const BLOCK = /```(?:stashwiki|json)?[ \t]*\r?\n([\s\S]*?)```/g
 
-/** Split an assistant reply into plain text and proposal blocks. A block still being streamed stays text. */
-export function splitReply(text: string): Segment[] {
+/**
+ * Split an assistant reply into plain text and proposal blocks. A block still being streamed stays text.
+ * `tools`: the buddy knows how StashWiki works, so its other changes (categories, galleries…) are understood too.
+ */
+export function splitReply(text: string, tools = false): Segment[] {
   const out: Segment[] = []
   let last = 0
   for (const m of text.matchAll(BLOCK)) {
@@ -156,7 +265,9 @@ export function splitReply(text: string): Segment[] {
       continue
     }
     const items = (Array.isArray(parsed) ? parsed : [parsed]).map((p) => (p && typeof p === 'object' ? normalize(p as Raw) : p))
-    if (!items.every((p) => p && typeof p === 'object' && ACTIONS.has((p as { action?: string }).action ?? ''))) continue
+    const known = (a: string): boolean => ACTIONS.has(a) || (tools && TOOL_ACTIONS.has(a))
+    if (!items.every((p) => p && typeof p === 'object' && known((p as { action?: string }).action ?? ''))) continue
+    if (!tools) for (const p of items as Raw[]) if (p.action === 'update_page') for (const k of TOOL_PAGE_KEYS) delete p[k]
     pushText(out, text.slice(last, m.index))
     for (const p of items) {
       const err = validate(p as Proposal)
@@ -224,6 +335,19 @@ function validate(p: Proposal): string | null {
     case 'update_css':
       if (typeof p.css !== 'string' || (!p.css.trim() && p.mode !== 'replace')) return 'It didn’t include any CSS.'
       return p.target === 'page' && !p.page?.trim() ? 'It did not say which page the CSS is for.' : null
+    case 'update_gallery':
+      return p.page?.trim() ? null : 'It did not say which page the gallery is on.'
+    case 'update_category':
+    case 'remove_category':
+      return p.name?.trim() ? null : 'It did not say which category.'
+    case 'update_navbox':
+      return p.title?.trim() ? null : 'It did not say which nav box.'
+    case 'update_sidebar':
+      return p.section?.trim() ? null : 'It did not say which sidebar section.'
+    case 'create_story':
+      return cleanTitle(p.title ?? '') ? null : 'A new story needs a title.'
+    case 'update_story':
+      return p.story?.trim() ? null : 'It did not say which story.'
   }
 }
 
@@ -317,6 +441,7 @@ export function normalize(raw: Raw): Raw {
       mode: modeOf(o.mode ?? o.operation) ?? 'append'
     }
   }
+  if (TOOL_ACTIONS.has(String(o.action))) return normalizeTool(o, action)
   if (o.action !== 'update_page') return o
   const top = modeOf(o.mode ?? o.operation)
   const p: Raw = { action: 'update_page', page: str(o.page) ?? str(o.page_title) ?? str(o.target) ?? str(o.title) }
@@ -383,7 +508,122 @@ export function normalize(raw: Raw): Raw {
   if (infobox) p.infobox = Object.fromEntries(Object.entries(infobox).map(([k, v]) => [k, v == null ? '' : String(v)]))
   const cats = o.add_categories ?? o.categories
   if (Array.isArray(cats)) p.add_categories = cats.filter((c) => typeof c === 'string')
+  const drop = strs(o.remove_categories)
+  if (drop) p.remove_categories = drop
+  const notes = o.notes ?? o.hatnotes ?? o.top_notes
+  if (Array.isArray(notes)) p.notes = strs(notes)
+  else if (typeof notes === 'string') p.notes = notes.trim() ? [notes] : []
+  if ('quote' in o) {
+    const q = o.quote
+    p.quote = typeof q === 'string' ? (q.trim() ? { text: q, by: '' } : null) : obj(q) ? { text: str((q as Raw).text) ?? str((q as Raw).quote) ?? '', by: str((q as Raw).by) ?? str((q as Raw).author) ?? '' } : null
+  }
+  if (typeof o.private === 'boolean') p.private = o.private
+  const nav = str(o.add_navbox) ?? str(o.navbox)
+  if (nav) p.add_navbox = nav
+  const cards = obj(o.add_cards) ?? obj(o.cards) ?? obj(o.page_cards)
+  if (cards) p.add_cards = { title: str(cards.title) ?? '', pages: strs(cards.pages) ?? [], section: str(cards.section) }
   return p
+}
+
+const strs = (v: unknown): string[] | undefined =>
+  Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').map((x) => x.trim()).filter(Boolean) : undefined
+const bool = (v: unknown): boolean | undefined => (typeof v === 'boolean' ? v : undefined)
+const nums = (v: unknown): number[] | undefined => (Array.isArray(v) ? v.map(Number).filter((n) => Number.isInteger(n) && n > 0) : undefined)
+
+/** The changes only a buddy that knows how StashWiki works sends, in the shape described to it. */
+function normalizeTool(o: Raw, asked: string): Raw {
+  switch (o.action) {
+    case 'update_gallery':
+      return {
+        action: 'update_gallery',
+        page: str(o.page) ?? str(o.page_title) ?? '',
+        gallery: o.gallery === undefined ? undefined : String(o.gallery),
+        title: str(o.title) ?? str(o.new_title) ?? str(o.rename),
+        spoiler: bool(o.spoiler),
+        images: (Array.isArray(o.images) ? o.images : Array.isArray(o.pictures) ? o.pictures : [])
+          .map((v) => obj(v))
+          .filter((v): v is Raw => !!v && Number(v.n ?? v.number) > 0)
+          .map((v) => ({
+            n: Number(v.n ?? v.number),
+            caption: str(v.caption),
+            credit: str(v.credit) ?? str(v.source),
+            spoiler: bool(v.spoiler)
+          })),
+        order: nums(o.order),
+        remove_images: nums(o.remove_images ?? o.remove_pictures),
+        remove: o.remove === true || o.delete === true
+      }
+    case 'update_category': {
+      const parent = o.parent ?? o.inside ?? o.parent_category
+      return {
+        action: 'update_category',
+        name: str(o.name) ?? str(o.category) ?? str(o.title) ?? '',
+        rename: str(o.rename) ?? str(o.new_name),
+        description: str(o.description),
+        parent: parent === null ? '' : str(parent),
+        show_subcategory_pages: bool(o.show_subcategory_pages ?? o.with_sub_pages ?? o.include_subcategories)
+      }
+    }
+    case 'remove_category':
+      return { action: 'remove_category', name: str(o.name) ?? str(o.category) ?? '' }
+    case 'update_navbox': {
+      const rows = Array.isArray(o.rows) ? o.rows : Array.isArray(o.groups) ? o.groups : undefined
+      return {
+        action: 'update_navbox',
+        title: str(o.title) ?? str(o.name) ?? str(o.navbox) ?? '',
+        rename: str(o.rename) ?? str(o.new_title),
+        rows: rows
+          ?.map((v) => obj(v))
+          .filter((v): v is Raw => !!v)
+          .map((v) => ({ label: str(v.label) ?? str(v.title) ?? '', pages: strs(v.pages ?? v.links) ?? [], category: str(v.category) })),
+        show_on: strs(o.show_on ?? o.showOn ?? o.categories),
+        remove: o.remove === true || o.delete === true || /^(remove|delete)_navbox$/.test(asked)
+      }
+    }
+    case 'update_sidebar': {
+      const links = (v: unknown): SidebarLink[] =>
+        (Array.isArray(v) ? v : [])
+          .map((x) => obj(x))
+          .filter((x): x is Raw => !!x)
+          .map((x) => ({
+            label: str(x.label) ?? str(x.text) ?? '',
+            target: str(x.target) ?? str(x.page) ?? str(x.link) ?? str(x.url) ?? '',
+            list_pages: bool(x.list_pages ?? x.listPages),
+            links: Array.isArray(x.links ?? x.children ?? x.sub_links) ? links(x.links ?? x.children ?? x.sub_links) : undefined
+          }))
+          .filter((x) => x.label || x.target)
+      return {
+        action: 'update_sidebar',
+        section: str(o.section) ?? str(o.title) ?? str(o.header) ?? '',
+        rename: str(o.rename) ?? str(o.new_title),
+        links: o.links === undefined ? undefined : links(o.links),
+        mode: modeOf(o.mode) ?? 'replace',
+        remove: o.remove === true || o.delete === true
+      }
+    }
+    case 'create_story':
+    case 'update_story': {
+      const d: Raw = {
+        action: o.action,
+        summary: str(o.summary),
+        status: ['wip', 'complete', 'hiatus'].includes(String(o.status)) ? o.status : undefined,
+        rating: ['', 'general', 'teen', 'mature', 'explicit'].includes(String(o.rating)) ? o.rating : undefined,
+        tags: strs(o.tags),
+        warnings: strs(o.warnings),
+        characters: strs(o.characters),
+        series: str(o.series),
+        series_part: Number(o.series_part ?? o.seriesPart) > 0 ? Number(o.series_part ?? o.seriesPart) : undefined
+      }
+      if (o.action === 'update_story') return { ...d, story: str(o.story) ?? str(o.page) ?? str(o.title) ?? '' }
+      const ch = obj(o.chapter) ?? obj(o.first_chapter)
+      return {
+        ...d,
+        title: str(o.title) ?? str(o.name) ?? '',
+        chapter: ch ? { name: str(ch.name) ?? str(ch.title), html: cleanProse(str(ch.html) ?? str(ch.text) ?? str(ch.content) ?? '') } : undefined
+      }
+    }
+  }
+  return o
 }
 
 /** Story text without any of the model's thinking, and without a stray chapter heading at the top. */
@@ -404,7 +644,13 @@ function hasChanges(p: Extract<Proposal, { action: 'update_page' }>): boolean {
     p.edits?.length ||
     p.html_block?.html.trim() ||
     (p.infobox && Object.keys(p.infobox).length) ||
-    p.add_categories?.length
+    p.add_categories?.length ||
+    p.remove_categories?.length ||
+    p.notes ||
+    p.quote !== undefined ||
+    p.private !== undefined ||
+    p.add_navbox ||
+    p.add_cards?.pages.length
   )
 }
 
@@ -435,18 +681,30 @@ const HAS_HTML = /<\/?(p|h[1-6]|ul|ol|li|strong|em|b|i|blockquote|br|a|div|span|
  */
 export function toBodyHtml(text: string): string {
   const lifted: string[] = []
+  const boxes: string[] = []
   const marked = text
     .replace(/\[HTML block:\s*([\s\S]*?[>›])\s*\]/g, (_m, inner: string) => {
       lifted.push(inner.replace(/‹/g, '<').replace(/›/g, '>').trim())
       return `\n\n@@SWBLOCK${lifted.length - 1}@@\n\n`
     })
-    // Page cards can't be rewritten as text; the originals stay on the page (see keepBlocks).
-    .replace(/\[(Page cards|Nav box)[^\]\n]*\]/g, '')
+    // Boxes written as "[Tip box] … [/Tip box]" (how a buddy that knows StashWiki sees them) become boxes again.
+    .replace(/\[(note|tip|warning|spoiler) box\]([\s\S]*?)\[\/\1 box\]/gi, (_m, kind: string, inner: string) => {
+      boxes.push(`<div class="callout" data-callout="${kind.toLowerCase()}">${toBodyHtml(inner.trim()) || '<p></p>'}</div>`)
+      return `\n\n@@SWBOX${boxes.length - 1}@@\n\n`
+    })
+    // Page cards, nav boxes and pictures can't be rewritten as text; the originals stay on the page (see keepBlocks).
+    .replace(/\[(Page cards|Nav box|Picture)[^\]\n]*\]/g, '')
   const html = HAS_HTML.test(marked) ? wrapLooseHtml(marked) : markdownLite(marked)
-  return linkify(html).replace(/(?:<p>)?@@SWBLOCK(\d+)@@(?:<\/p>)?/g, (_m, i: string) => htmlBlockTag(lifted[Number(i)] ?? ''))
+  return linkify(html)
+    .replace(/(?:<p>)?@@SWBLOCK(\d+)@@(?:<\/p>)?/g, (_m, i: string) => htmlBlockTag(lifted[Number(i)] ?? ''))
+    .replace(/\s*(?:<p>)?@@SWBOX(\d+)@@(?:<\/p>)?\s*/g, (_m, i: string) => boxes[Number(i)] ?? '')
 }
 
-const ATOM = /<div\b[^>]*\bdata-(html|cards|navbox)="([^"]*)"[^>]*>\s*<\/div>/g
+/** Things in a page's text that are kept whole when the buddy rewrites around them: blocks, cards, nav boxes and pictures. */
+const ATOM = /<div\b[^>]*\bdata-(html|cards|navbox)="([^"]*)"[^>]*>\s*<\/div>|<(img)\b[^>]*\bsrc="([^"]*)"[^>]*>/g
+const atomKind = (m: RegExpMatchArray): string => m[1] ?? m[3]
+const atomKey = (m: RegExpMatchArray): string => m[2] ?? m[4]
+const isAtomBlock = (b: string): boolean => /^<div\b[^>]*\bdata-(html|cards|navbox)=/.test(b) || /^(<p>\s*)?<img\b[^>]*>(\s*<\/p>)?$/i.test(b.trim())
 const looseFancy = (block: string): boolean =>
   /^\s*<style\b/i.test(block) || (/^\s*<[a-z][a-z0-9]*\b[^>]*\b(class|style)=/i.test(block) && !/^\s*<[a-z][a-z0-9]*\b[^>]*\bdata-(html|cards|navbox|callout)=/i.test(block))
 
@@ -479,21 +737,21 @@ export function keepBlocks(existing: string, next: string): string {
   const old = [...existing.matchAll(ATOM)]
   if (!old.length) return next
   const fresh = [...next.matchAll(ATOM)]
-  const have = new Set(fresh.map((m) => m[2]))
+  const have = new Set(fresh.map(atomKey))
   const spare: Record<string, number> = {}
-  for (const m of fresh) if (!old.some((o) => o[2] === m[2])) spare[m[1]] = (spare[m[1]] ?? 0) + 1
+  for (const m of fresh) if (!old.some((o) => atomKey(o) === atomKey(m))) spare[atomKind(m)] = (spare[atomKind(m)] ?? 0) + 1
   const blocks = splitBlocks(next)
   // Where each one was: how much of the section's writing came before it.
   const before = splitBlocks(existing)
-  const writing = before.filter((b) => !/^<div\b[^>]*\bdata-(html|cards|navbox)=/.test(b)).length
+  const writing = before.filter((b) => !isAtomBlock(b)).length
   const add: { at: number; tag: string }[] = []
   for (const o of old) {
-    if (have.has(o[2])) continue
-    if (spare[o[1]]) {
-      spare[o[1]]--
+    if (have.has(atomKey(o))) continue
+    if (spare[atomKind(o)]) {
+      spare[atomKind(o)]--
       continue
     }
-    const ahead = before.slice(0, before.findIndex((b) => b.includes(o[2]))).filter((b) => !/^<div\b[^>]*\bdata-(html|cards|navbox)=/.test(b)).length
+    const ahead = before.slice(0, before.findIndex((b) => b.includes(atomKey(o)))).filter((b) => !isAtomBlock(b)).length
     add.push({ at: Math.round((ahead / Math.max(1, writing)) * blocks.length), tag: o[0] })
   }
   if (!add.length) return next
@@ -903,6 +1161,27 @@ export function plan(p: Proposal, ctx: PlanContext): Plan {
       if (p.append) page.body = appendWithoutRepeats(page.body, html(p.append))
       if (p.infobox) page = applyInfobox(page, ctx.meta.templates.find((t) => t.id === page.templateId), p.infobox)
       if (p.add_categories?.length) page.categories = [...new Set([...page.categories, ...p.add_categories.map(cleanTitle).filter(Boolean)])]
+      if (p.remove_categories?.length) {
+        const drop = new Set(p.remove_categories.map(titleKey))
+        page.categories = page.categories.filter((c) => !drop.has(titleKey(c)))
+      }
+      if (p.notes) page.hatnotes = p.notes.map((n) => n.trim()).filter(Boolean)
+      if (p.quote !== undefined) {
+        const { quote: _q, ...rest } = page
+        page = p.quote?.text.trim() ? { ...rest, quote: { text: p.quote.text.trim(), by: p.quote.by.trim() } } : rest
+      }
+      if (p.private !== undefined) page.private = p.private
+      if (p.add_navbox) {
+        const box = ctx.meta.navboxes?.find((b) => titleKey(b.title) === titleKey(p.add_navbox!))
+        if (!box) throw new Error(`There is no nav box called “${p.add_navbox}” yet. If another card makes it, apply that one first.`)
+        if (!page.body.includes(`data-navbox="${box.id}"`)) page.body += navboxTag(box.id)
+      }
+      if (p.add_cards?.pages.length) {
+        const data = { groups: [{ title: p.add_cards.title, cards: p.add_cards.pages.map((t) => ({ page: cleanTitle(t) })) }] }
+        const tag = `<div data-cards="${escapeHtml(JSON.stringify(data))}"></div>`
+        const at = p.add_cards.section ? findSection(page.body, p.add_cards.section, true) : null
+        page.body = at ? page.body.slice(0, at.end) + tag + page.body.slice(at.end) : page.body + tag
+      }
       return { pages: [page], created: [], openPageId: page.id }
     }
     case 'update_template': {
@@ -982,7 +1261,149 @@ export function plan(p: Proposal, ctx: PlanContext): Plan {
       }
       return { pages: [], created: [], meta: { ...ctx.meta, templates: [...ctx.meta.templates, t] } }
     }
+    case 'update_gallery':
+      return planGallery(p, ctx)
+    case 'update_category': {
+      let meta = ctx.meta
+      let changed: Page[] = []
+      let name = cleanTitle(p.name)
+      if (p.rename && cleanTitle(p.rename) && cleanTitle(p.rename) !== name) {
+        const r = renameCategory(meta, Object.values(ctx.pages), name, p.rename)
+        meta = r.meta
+        changed = r.pages
+        name = Object.keys(meta.categories).find((c) => titleKey(c) === titleKey(p.rename!)) ?? cleanTitle(p.rename)
+      }
+      const info = categoryInfo(meta, name)
+      const parent = p.parent === undefined ? (info?.parent ?? '') : cleanTitle(p.parent)
+      if (parent && !canNestUnder(meta, name, parent)) throw new Error(`“${name}” can’t go inside “${parent}”, because “${parent}” is inside it.`)
+      const withSub = p.show_subcategory_pages === undefined ? info?.withSubPages : p.show_subcategory_pages || undefined
+      meta = setCategory(meta, name, { description: p.description ?? info?.description ?? '', parent: parent || undefined, ...(withSub ? { withSubPages: true } : {}) })
+      return { pages: changed, created: [], meta }
+    }
+    case 'remove_category': {
+      const used =
+        !!categoryInfo(ctx.meta, p.name) ||
+        Object.values(ctx.pages).some((x) => x.categories.some((c) => titleKey(c) === titleKey(p.name))) ||
+        ctx.meta.templates.some((t) => t.categories.some((c) => titleKey(c) === titleKey(p.name)))
+      if (!used) throw new Error(`There is no category called “${p.name}”.`)
+      const r = removeCategory(ctx.meta, Object.values(ctx.pages), p.name)
+      return { pages: r.pages, created: [], meta: r.meta }
+    }
+    case 'update_navbox': {
+      const boxes = [...(ctx.meta.navboxes ?? [])]
+      const i = boxes.findIndex((b) => titleKey(b.title) === titleKey(p.title))
+      if (p.remove) {
+        if (i < 0) throw new Error(`There is no nav box called “${p.title}”.`)
+        const tag = navboxTag(boxes[i].id)
+        const changed = Object.values(ctx.pages)
+          .filter((x) => x.body.includes(tag))
+          .map((x) => ({ ...x, body: x.body.split(tag).join('') }))
+        boxes.splice(i, 1)
+        return { pages: changed, created: [], meta: { ...ctx.meta, navboxes: boxes } }
+      }
+      const box: Navbox = i >= 0 ? { ...boxes[i] } : { id: uid(), title: p.title.trim(), groups: [], showOn: [] }
+      if (p.rename?.trim()) box.title = p.rename.trim()
+      if (p.rows) box.groups = p.rows.map((r) => ({ id: uid(), label: r.label.trim(), pages: r.pages.map(cleanTitle).filter(Boolean), category: r.category ? cleanTitle(r.category) : '' }))
+      if (p.show_on) box.showOn = p.show_on.map(cleanTitle).filter(Boolean)
+      if (i >= 0) boxes[i] = box
+      else boxes.push(box)
+      return { pages: [], created: [], meta: { ...ctx.meta, navboxes: boxes } }
+    }
+    case 'update_sidebar': {
+      const sections = [...(ctx.meta.sidebar ?? [])]
+      const i = sections.findIndex((x) => titleKey(x.title) === titleKey(p.section))
+      if (p.remove) {
+        if (i < 0) throw new Error(`There is no sidebar section called “${p.section}”.`)
+        sections.splice(i, 1)
+      } else {
+        const toLinks = (ls: SidebarLink[]): NavLink[] =>
+          ls.map((l) => ({
+            id: uid(),
+            label: l.label.trim(),
+            target: l.target.trim(),
+            ...(l.list_pages ? { listPages: true } : {}),
+            ...(l.links?.length ? { children: toLinks(l.links) } : {})
+          }))
+        const sec: NavSection = i >= 0 ? { ...sections[i] } : { id: uid(), title: p.section.trim(), links: [] }
+        if (p.rename?.trim()) sec.title = p.rename.trim()
+        if (p.links) sec.links = p.mode === 'append' ? [...sec.links, ...toLinks(p.links)] : toLinks(p.links)
+        if (i >= 0) sections[i] = sec
+        else sections.push(sec)
+      }
+      return { pages: [], created: [], meta: { ...ctx.meta, sidebar: sections } }
+    }
+    case 'create_story': {
+      const title = cleanTitle(p.title)
+      if (findPage(ctx.pages, title)) throw new Error(`There is already a page called “${title}”.`)
+      const story = makeStory(title)
+      story.story = storyDetails({ ...emptyStory(), ...story.story }, p)
+      const out: Plan = { pages: [story], created: [story.id], openPageId: story.id }
+      if (p.chapter) {
+        const taken = (t: string): boolean => Object.values(ctx.pages).some((x) => titleKey(x.title) === titleKey(t))
+        const chapter = makeChapter(story, p.chapter.name?.trim() || 'Chapter 1', taken)
+        if (p.chapter.html.trim()) chapter.body = html(p.chapter.html)
+        story.story = { ...story.story!, chapters: [chapter.id] }
+        out.pages.push(chapter)
+        out.created.push(chapter.id)
+      }
+      return out
+    }
+    case 'update_story': {
+      const story = findPage(ctx.pages, p.story)
+      if (!story?.story) throw new Error(`There is no story called “${p.story}”.`)
+      return { pages: [{ ...story, story: storyDetails(story.story, p) }], created: [], openPageId: story.id }
+    }
   }
+}
+
+function storyDetails(info: StoryInfo, d: StoryDetails): StoryInfo {
+  const next = { ...info }
+  if (d.summary !== undefined) next.summary = d.summary.trim()
+  if (d.status) next.status = d.status
+  if (d.rating !== undefined) next.rating = d.rating
+  if (d.tags) next.tags = d.tags
+  if (d.warnings) next.warnings = d.warnings
+  if (d.characters) next.characters = d.characters.map(cleanTitle).filter(Boolean)
+  if (d.series !== undefined) next.series = d.series.trim() || undefined
+  if (d.series_part) next.seriesPart = d.series_part
+  return next
+}
+
+/** Captions, credits, spoilers, order and titles of a page's gallery (pictures are only moved or removed, never added). */
+function planGallery(p: Extract<Proposal, { action: 'update_gallery' }>, ctx: PlanContext): Plan {
+  const page = findPage(ctx.pages, p.page)
+  if (!page) throw new Error(`There is no page called “${p.page}”.`)
+  const want = p.gallery?.trim() ?? ''
+  const gi = !want
+    ? page.galleries.length === 1
+      ? 0
+      : -1
+    : /^\d+$/.test(want)
+      ? Number(want) - 1
+      : page.galleries.findIndex((g) => titleKey(g.title || 'Gallery') === titleKey(want))
+  if (!page.galleries[gi]) throw new Error(want ? `“${page.title}” has no gallery called “${want}”.` : `Which gallery on “${page.title}”? It has ${page.galleries.length}.`)
+  const galleries = [...page.galleries]
+  if (p.remove) galleries.splice(gi, 1)
+  else {
+    const g: Gallery = { ...galleries[gi] }
+    if (p.title !== undefined) g.title = p.title.trim()
+    if (p.spoiler !== undefined) g.spoiler = p.spoiler || undefined
+    const orig = g.images.map((im) => ({ ...im }))
+    for (const e of p.images ?? []) {
+      const im = orig[e.n - 1]
+      if (!im) throw new Error(`The gallery has no picture ${e.n}.`)
+      if (e.caption !== undefined) im.caption = e.caption.trim()
+      if (e.credit !== undefined) im.source = e.credit.trim()
+      if (e.spoiler !== undefined) im.spoiler = e.spoiler || undefined
+    }
+    const picked = (p.order ?? []).map((n) => orig[n - 1]).filter((im, i, a) => im && a.indexOf(im) === i)
+    let images = [...picked, ...orig.filter((im) => !picked.includes(im))]
+    const drop = new Set((p.remove_images ?? []).map((n) => orig[n - 1]))
+    images = images.filter((im) => !drop.has(im))
+    g.images = images
+    galleries[gi] = g
+  }
+  return { pages: [{ ...page, galleries }], created: [], openPageId: page.id }
 }
 
 /** One-line description for the card. */
@@ -1001,6 +1422,12 @@ export function describe(p: Proposal): string {
       if (p.append) parts.push('add text at the end')
       if (p.infobox) parts.push(`fill ${Object.keys(p.infobox).length} infobox field${Object.keys(p.infobox).length === 1 ? '' : 's'}`)
       if (p.add_categories?.length) parts.push(`add categor${p.add_categories.length === 1 ? 'y' : 'ies'} ${p.add_categories.join(', ')}`)
+      if (p.remove_categories?.length) parts.push(`take off categor${p.remove_categories.length === 1 ? 'y' : 'ies'} ${p.remove_categories.join(', ')}`)
+      if (p.notes) parts.push(p.notes.length ? 'set the notes at the top' : 'remove the notes at the top')
+      if (p.quote !== undefined) parts.push(p.quote?.text.trim() ? 'set the opening quote' : 'remove the opening quote')
+      if (p.private !== undefined) parts.push(p.private ? 'make it private' : 'make it public')
+      if (p.add_navbox) parts.push(`add the nav box “${p.add_navbox}”`)
+      if (p.add_cards?.pages.length) parts.push(`add ${p.add_cards.pages.length} page card${p.add_cards.pages.length === 1 ? '' : 's'}`)
       return `“${p.page}”: ${parts.join(', ') || 'no changes'}`
     }
     case 'update_template': {
@@ -1027,6 +1454,36 @@ export function describe(p: Proposal): string {
       const where = p.target === 'wiki' ? 'the wiki’s custom CSS' : `“${p.page}” page CSS`
       return p.mode === 'replace' ? `Replace ${where} (${lines} line${lines === 1 ? '' : 's'})` : `Add ${lines} line${lines === 1 ? '' : 's'} to ${where}`
     }
+    case 'update_gallery': {
+      if (p.remove) return `Remove a gallery from “${p.page}”`
+      const parts: string[] = []
+      if (p.title !== undefined) parts.push(`rename to “${p.title}”`)
+      if (p.spoiler !== undefined) parts.push(p.spoiler ? 'make it a spoiler' : 'not a spoiler')
+      if (p.images?.length) parts.push(`change ${p.images.length} picture${p.images.length === 1 ? '' : 's'}`)
+      if (p.order?.length) parts.push('reorder')
+      if (p.remove_images?.length) parts.push(`remove ${p.remove_images.length} picture${p.remove_images.length === 1 ? '' : 's'}`)
+      return `Gallery${p.gallery ? ` “${p.gallery}”` : ''} on “${p.page}”: ${parts.join(', ') || 'no changes'}`
+    }
+    case 'update_category': {
+      const parts: string[] = []
+      if (p.rename) parts.push(`rename to “${p.rename}”`)
+      if (p.parent !== undefined) parts.push(p.parent ? `put inside “${p.parent}”` : 'make it top-level')
+      if (p.description !== undefined) parts.push('set the description')
+      if (p.show_subcategory_pages !== undefined) parts.push(p.show_subcategory_pages ? 'show subcategory pages' : 'hide subcategory pages')
+      return `Category “${p.name}”: ${parts.join(', ') || 'make it'}`
+    }
+    case 'remove_category':
+      return `Remove the category “${p.name}” (the pages stay)`
+    case 'update_navbox':
+      if (p.remove) return `Remove the nav box “${p.title}”`
+      return `Nav box “${p.title}”${p.rename ? ` → “${p.rename}”` : ''}${p.rows ? `: ${p.rows.length} row${p.rows.length === 1 ? '' : 's'}` : ''}${p.show_on?.length ? `, on pages in ${p.show_on.join(', ')}` : ''}`
+    case 'update_sidebar':
+      if (p.remove) return `Remove the sidebar section “${p.section}”`
+      return `Sidebar section “${p.section}”${p.rename ? ` → “${p.rename}”` : ''}${p.links ? `: ${p.mode === 'append' ? 'add' : 'set'} ${p.links.length} link${p.links.length === 1 ? '' : 's'}` : ''}`
+    case 'create_story':
+      return `New story “${cleanTitle(p.title)}”${p.chapter ? ' with a first chapter' : ''}`
+    case 'update_story':
+      return `Story details for “${p.story}”`
   }
 }
 
@@ -1034,13 +1491,21 @@ export function describe(p: Proposal): string {
 export function changesPage(before: Page | undefined, after: Page): boolean {
   if (!before) return true
   const key = (a: Page): string =>
-    JSON.stringify([a.title, a.body, a.infobox, a.infoboxOverrides ?? null, a.categories, a.story ?? null, a.chapter ?? null, a.customCss ?? null])
+    JSON.stringify([
+      a.title, a.body, a.infobox, a.infoboxOverrides ?? null, a.categories, a.story ?? null, a.chapter ?? null, a.customCss ?? null,
+      a.galleries, a.hatnotes ?? null, a.quote ?? null, !!a.private
+    ])
   return key(before) !== key(after)
 }
 
 /** Every page title a proposal touches (to avoid clashing with a page open in the editor). */
-export function touchedTitles(p: Proposal): string[] {
-  if (p.action === 'update_page' || p.action === 'set_summary') return [p.page]
+export function touchedTitles(p: Proposal, pages: Record<string, Page> = {}): string[] {
+  if (p.action === 'update_page' || p.action === 'set_summary' || p.action === 'update_gallery') return [p.page]
+  if (p.action === 'update_story') return [p.story]
+  if ((p.action === 'update_category' && p.rename) || p.action === 'remove_category')
+    return Object.values(pages)
+      .filter((x) => x.categories.some((c) => titleKey(c) === titleKey(p.name)))
+      .map((x) => x.title)
   if (p.action === 'write_chapter') return [p.chapter ?? '', p.story ?? ''].filter(Boolean)
   return p.action === 'update_css' && p.target === 'page' && p.page ? [p.page] : []
 }
