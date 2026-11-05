@@ -8,6 +8,7 @@ import { titleKey } from '../lib/wikitext'
 import { systemPrompt } from './context'
 import { changesPage, plan, touchedTitles, type Proposal } from './proposals'
 import { relatedPages } from './related'
+import { messageLinks, webContext, type WebPage } from './webLinks'
 import { flushEditor, isOpenInAutosave } from '../lib/useAutosave'
 import { usePrefs } from '../lib/prefs'
 
@@ -25,7 +26,10 @@ export interface ChatMessage {
   target?: string
   /** Sent while the buddy knew how StashWiki works, so its other kinds of change are understood. */
   tools?: boolean
+  /** What it's doing before the reply starts (e.g. reading a linked page). */
+  note?: string
 }
+
 
 export interface CardState {
   status: 'applied' | 'dismissed' | 'undone'
@@ -45,6 +49,8 @@ interface AiState {
   autoFind: boolean
   found: { id: string; on: boolean }[]
   cards: Record<string, CardState>
+  /** Web pages read from links in this chat (newest last), sent along with each message. */
+  web: WebPage[]
   /** How the buddy helps while a story or chapter is open. */
   storyMode: StoryMode
   writeLength: WriteLength
@@ -104,6 +110,7 @@ export const useAi = create<AiState>((set, get) => ({
   autoFind: false,
   found: [],
   cards: {},
+  web: [],
   storyMode: 'write',
   writeLength: 'medium',
 
@@ -139,7 +146,7 @@ export const useAi = create<AiState>((set, get) => ({
       .map((m) => ({ role: m.role, content: m.role === 'assistant' ? stripThinking(m.content).text : m.content }))
     const storyPage = page && (page.story || page.chapter) ? page : null
     const story = storyPage ? { mode: get().storyMode, length: get().writeLength } : undefined
-    const messages: AiMessage[] = [{ role: 'system', content: systemPrompt(meta, pages, page, short, extra, story, !!get().settings?.wikiTools) }, ...history, { role: 'user', content }]
+    const system = systemPrompt(meta, pages, page, short, extra, story, !!get().settings?.wikiTools)
     const id = uid()
     set({
       busyId: id,
@@ -150,6 +157,10 @@ export const useAi = create<AiState>((set, get) => ({
       ]
     })
     try {
+      if (get().settings?.readLinks) await readLinks(id, content)
+      if (get().busyId !== id) return
+      note(id, undefined)
+      const messages: AiMessage[] = [{ role: 'system', content: system + webContext(get().web, short) }, ...history, { role: 'user', content }]
       await api().chat(id, messages)
     } catch (e) {
       finish(id, String((e as Error).message ?? e))
@@ -168,11 +179,13 @@ export const useAi = create<AiState>((set, get) => ({
   stop() {
     const id = get().busyId
     if (id) void api().abort(id)
+    // Still reading links: nothing has gone to the AI service yet.
+    if (id && get().messages.find((m) => m.id === id)?.note) finish(id)
   },
 
   clear() {
     get().stop()
-    set({ messages: [], cards: {}, busyId: null })
+    set({ messages: [], cards: {}, busyId: null, web: [] })
   },
 
   async apply(cardId, p) {
@@ -254,10 +267,35 @@ export function contextPages(): Page[] {
   return [...new Set(ids)].map((id) => pages[id]).filter((p): p is Page => !!p)
 }
 
+function note(id: string, text: string | undefined): void {
+  useAi.setState((s) => ({ messages: s.messages.map((m) => (m.id === id ? { ...m, note: text } : m)) }))
+}
+
+/** Read the pages linked in a message into the chat's web pages (a failed one is noted for the buddy instead). */
+async function readLinks(id: string, content: string): Promise<void> {
+  for (const url of messageLinks(content)) {
+    if (useAi.getState().busyId !== id) return
+    let host = url
+    try {
+      host = new URL(url).hostname
+    } catch {
+      // keep the whole link
+    }
+    note(id, `Reading ${host}…`)
+    let page: WebPage
+    try {
+      page = await api().readLink(url)
+    } catch (e) {
+      page = { url, title: '', text: `(Couldn’t read this page: ${String((e as Error).message ?? e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')})` }
+    }
+    useAi.setState((s) => ({ web: [...s.web.filter((w) => w.url !== url && w.url !== page.url), page].slice(-3) }))
+  }
+}
+
 function finish(id: string, error?: string): void {
   useAi.setState((s) => ({
     busyId: s.busyId === id ? null : s.busyId,
-    messages: s.messages.map((m) => (m.id === id ? { ...m, streaming: false, error } : m))
+    messages: s.messages.map((m) => (m.id === id ? { ...m, streaming: false, note: undefined, error } : m))
   }))
 }
 

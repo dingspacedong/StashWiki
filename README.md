@@ -34,6 +34,7 @@
 - **Infobox templates** for Characters, Locations, Episodes, Movies and Games — or make your own. Drag fields to reorder them, and rename, add or remove fields on just one page.
 - **Infobox picture tabs** (like *Card / Wish / In-Game*), **galleries** with captions, credits and a lightbox (mark single pictures or a whole gallery as spoilers), and pictures you can paste or drag straight in, with captions.
 - **`[[Links]]` between pages**, with red links for pages that don't exist yet. Renaming a page updates every link to it.
+- **Import from Toyhouse**: paste a public character's link and get a page with its name, gallery (with artist credits) and profile text.
 - **Links to your other wikis**: `[[Other wiki::Page]]`, or pick the wiki in the Page link menu. Clicking one opens that wiki at the page. They work in sidebar links too.
 - **Categories with subcategories**: make, rename, nest (drag one onto another) and remove them from the Categories page, and choose whether a category also lists its subcategories' pages. Renaming one updates every page, template, sidebar link and nav box using it.
 - **Search**, **find on the page** (Ctrl+F, or ⌘F on a Mac), **recent changes**, **what links here**, **random page**.
@@ -74,6 +75,7 @@
 - Brainstorms, writes and suggests changes as cards you **Apply** or **Undo**. Nothing changes until you say so.
 - Optional, experimental **Knows how StashWiki works** switch: it learns how the app works and can also suggest changes to categories and subcategories, gallery captions and spoilers, nav boxes, sidebar sections, notes at the top, quotes, tip/warning/spoiler boxes, private pages and new stories. Your settings and looks stay yours.
 - On stories: **Write with me** (it continues the scene in your style), **Suggest** (ideas, feedback, "does this fit my wiki?") and **Summarize** (chapter summaries and blurbs). Its "thinking" text never ends up in your writing.
+- Can **read links** you paste in a message (switch it on in the buddy), and sort an imported Toyhouse profile into the infobox and sections.
 - Works with NanoGPT, OpenRouter, Google Gemini, OpenAI, DeepSeek, Mistral, Groq, any OpenAI-compatible service, or a **model on your own computer** (LM Studio, Ollama, KoboldCpp, text-generation-webui, llama.cpp, Jan).
 - Don't want AI at all? Download a **No-AI** version: the writing buddy isn't just hidden there, it isn't included at all.
 
@@ -166,6 +168,8 @@ Updating never touches your wikis.
 - Your wikis are plain files on your computer, in `Documents/StashWiki/<wiki name>`. Uninstalling doesn't delete them.
 - The app window can't reach the internet at all. StashWiki only goes online when **you** ask:
   - **Check for updates**: asks GitHub for the newest version. Nothing about you or your wikis is sent.
+  - **Import from Toyhouse**: opens the character you linked on Toyhouse, out of sight unless Toyhouse asks you to click something (like a content warning), and downloads its pictures. Nothing is kept from that visit once StashWiki closes.
+  - **Reading links**, if you turn it on in the buddy: opens the pages you link in a message the same way, and sends their text to your AI service with your message.
   - **The writing buddy**, if you turn it on: sends your message and the pages you choose to the AI service *you* picked, and nothing else. Your API key is stored encrypted on your computer, never in a wiki.
 - Exported websites leave out private pages and draft chapters.
 

@@ -316,6 +316,12 @@ export interface StashApi {
   applyShare(token: string, mode: ImportMode): Promise<ImportResult>
   exportSite(wikiId: string, files: Record<string, string>, images: string[], fonts?: string[]): Promise<string | null>
   updates: UpdatesApi
+  /** Import a public Toyhouse character (goes online only when asked). */
+  toyhouse: {
+    read(url: string): Promise<ToyhouseCharacter>
+    download(wikiId: string, urls: string[]): Promise<(string | null)[]>
+    onProgress(cb: (p: ToyhouseProgress) => void): () => void
+  }
   /** A .stashwiki file the app was opened with (double-click), once. */
   takeShareFile(): Promise<string | null>
   onShareFile(cb: (path: string) => void): () => void
@@ -323,6 +329,28 @@ export interface StashApi {
   /** Missing in the no-AI build. */
   ai?: AiApi
 }
+
+export interface ToyhouseImage {
+  /** The full-size picture on Toyhouse. */
+  url: string
+  /** Artist credit(s) as shown on Toyhouse. */
+  credit: string
+  creditUrl: string
+  caption: string
+  /** Has a content warning on Toyhouse. */
+  spoiler: boolean
+}
+
+export interface ToyhouseCharacter {
+  url: string
+  name: string
+  creator: string
+  profileHtml: string
+  profileText: string
+  images: ToyhouseImage[]
+}
+
+export type ToyhouseProgress = { stage: 'profile' } | { stage: 'gallery'; page: number } | { stage: 'pictures'; done: number; total: number }
 
 export interface HistoryEntry {
   /** When this version was set aside. */

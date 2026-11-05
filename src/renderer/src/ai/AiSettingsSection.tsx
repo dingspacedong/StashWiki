@@ -241,6 +241,16 @@ export default function AiSettingsSection(): React.JSX.Element | null {
               </span>
             </span>
           </label>
+          <label className="check">
+            <input type="checkbox" checked={settings.readLinks} onChange={(e) => void save({ readLinks: e.target.checked })} />
+            <span>
+              Read links in my messages{' '}
+              <span className="muted">
+                (when a message has a web link in it, StashWiki opens the page out of sight and sends its text along. If the page asks you to click
+                through something first, it shows the page for you)
+              </span>
+            </span>
+          </label>
           <div className="row gap ai-test-row">
             <button className="btn small" disabled={!isReady(settings)} onClick={() => void runTest()}>
               Test connection

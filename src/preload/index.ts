@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { StashApi, UpdateCheck, UpdateProgress } from '../shared/types'
+import type { StashApi, ToyhouseProgress, UpdateCheck, UpdateProgress } from '../shared/types'
 import type { AiApi, AiEvent } from '../shared/ai'
 
 const call =
@@ -52,6 +52,15 @@ const api: StashApi = {
       return () => ipcRenderer.removeListener('updates:available', listener)
     }
   },
+  toyhouse: {
+    read: call('toyhouse:read'),
+    download: call('toyhouse:download'),
+    onProgress: (cb: (p: ToyhouseProgress) => void) => {
+      const listener = (_e: unknown, p: ToyhouseProgress): void => cb(p)
+      ipcRenderer.on('toyhouse:progress', listener)
+      return () => ipcRenderer.removeListener('toyhouse:progress', listener)
+    }
+  },
   onShareFile: (cb: (path: string) => void) => {
     const listener = (_e: unknown, path: string): void => cb(path)
     ipcRenderer.on('open-share-file', listener)
@@ -67,6 +76,7 @@ if (__AI__) {
     listModels: call('ai:listModels'),
     chat: call('ai:chat'),
     abort: call('ai:abort'),
+    readLink: call('ai:readLink'),
     onEvent: (cb: (e: AiEvent) => void) => {
       const listener = (_e: unknown, ev: AiEvent): void => cb(ev)
       ipcRenderer.on('ai:event', listener)

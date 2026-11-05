@@ -213,6 +213,12 @@ export default function AiPanel(): React.JSX.Element {
           <span className="badge tiny">Experimental</span>
         </label>
       )}
+      {settings && (
+        <label className="ai-context ai-links" title="When a message has a web link in it, the page is opened (hidden) and its text is sent along">
+          <input type="checkbox" checked={settings.readLinks} onChange={(e) => void useAi.getState().saveSettings({ readLinks: e.target.checked })} />
+          <span>Read links in my messages</span>
+        </label>
+      )}
 
       {storyPage && (
         <div className="story-helper">
@@ -366,7 +372,7 @@ function Message({ m }: { m: ChatMessage }): React.JSX.Element {
           ↻ Try again
         </button>
       )}
-      {m.streaming && <span className="ai-typing">{thinking ? 'Thinking…' : '●●●'}</span>}
+      {m.streaming && <span className="ai-typing">{m.note ?? (thinking ? 'Thinking…' : '●●●')}</span>}
       {m.error && <div className="ai-error">Couldn’t get a reply: {m.error}</div>}
     </div>
   )

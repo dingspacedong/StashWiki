@@ -102,6 +102,16 @@ those are ignored, so the prompt and the cards are exactly as before. A reply re
 The rest of the app reaches the buddy only through `ai/gate.ts`. Builds with `STASHWIKI_AI=0` swap that file for
 `noai/gate.ts`, so the No-AI versions contain none of the buddy's code.
 
+## Going online on purpose
+
+Besides updates and the buddy's AI service, two things open web pages, always because the person asked:
+`main/toyhouse.ts` (Import from Toyhouse) and `main/webReader.ts` (the buddy reading linked pages; AI builds only).
+Toyhouse is behind Cloudflare, which turns away plain downloads, so both load pages in a real, hidden
+`BrowserWindow` with its own in-memory session, named as the Chrome it is (the Electron name makes Cloudflare's check
+fail). The window is shown when the person has to click something (a content warning, a Cloudflare check); the app
+never clicks those itself. Automated test browsers are refused by Cloudflare, so the importer's reading step is tested
+in a plain Electron window and the rest with a stand-in result.
+
 ## Updates
 
 `main/updates.ts` asks GitHub for the latest release and, when the person chooses to update, downloads only the file

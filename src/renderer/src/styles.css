@@ -1508,3 +1508,14 @@ a.wikiref::after { content: " ⇢"; font-size: 0.8em; opacity: 0.7; }
 @keyframes wn-pop { from { opacity: 0; transform: translateY(14px) scale(0.96); } to { opacity: 1; transform: none; } }
 @keyframes wn-twinkle { 0%, 100% { opacity: 0.25; transform: scale(0.85); } 50% { opacity: 0.9; transform: scale(1.1); } }
 @media (prefers-reduced-motion: reduce) { .whats-new-back, .whats-new, .wn-sparkles span { animation: none !important; } }
+
+/* Import from Toyhouse */
+.modal.toyhouse-import { max-width: 560px; }
+.toyhouse-import input:not([type]), .toyhouse-import select { width: 100%; }
+.th-entry { margin: 18px 0 4px; }
+.th-found { margin: 4px 0 8px; }
+.th-options { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 8px; }
+.th-preview { max-height: 120px; overflow: auto; white-space: pre-wrap; font-size: 13px; color: var(--muted); background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+.th-busy { display: flex; align-items: center; gap: 12px; padding: 28px 4px; }
+.th-spinner { width: 22px; height: 22px; border-radius: 50%; border: 3px solid color-mix(in srgb, var(--accent) 25%, transparent); border-top-color: var(--accent); animation: th-spin 0.8s linear infinite; }
+@keyframes th-spin { to { transform: rotate(360deg); } }

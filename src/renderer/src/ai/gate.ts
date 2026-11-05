@@ -3,4 +3,4 @@
 export { default as AiPanel } from './AiPanel'
 export { default as AiSettingsSection } from './AiSettingsSection'
 export { useAi } from './aiStore'
-export { askStoryBuddy } from './storyHelp'
+export { askBuddy, askStoryBuddy } from './storyHelp'

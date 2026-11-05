@@ -1,7 +1,8 @@
 // The optional AI writing buddy's connection to an OpenAI-compatible service (NanoGPT, OpenRouter, Gemini,
 // a local model on this or another computer, ...). Everything here is inert until the user turns the buddy on;
 // the app window itself still can't reach the internet.
-import { ipcMain, safeStorage, session, type WebContents } from 'electron'
+import { BrowserWindow, ipcMain, safeStorage, session, type WebContents } from 'electron'
+import { readPage } from './webReader'
 import { join } from 'path'
 import { AI_PROVIDERS, LOCAL_PROGRAMS, localBaseUrl, type AiMessage, type AiProvider, type AiSettings, type LocalProgram } from '../shared/ai'
 import { dataRoot, readJson, writeJson } from './store'
@@ -14,6 +15,7 @@ interface Stored {
   temperature: number
   shortContext: boolean
   wikiTools: boolean
+  readLinks: boolean
   localHost: string
   localProgram: LocalProgram
   /** The API key, encrypted with the OS keystore (DPAPI on Windows, Keychain on macOS) when available. */
@@ -30,6 +32,7 @@ const DEFAULTS: Stored = {
   temperature: 0.8,
   shortContext: false,
   wikiTools: false,
+  readLinks: false,
   localHost: 'localhost',
   localProgram: 'lmstudio'
 }
@@ -55,6 +58,7 @@ function publicView(s: Stored): AiSettings {
     temperature: s.temperature,
     shortContext: s.shortContext,
     wikiTools: s.wikiTools,
+    readLinks: s.readLinks,
     localHost: s.localHost,
     localProgram: s.localProgram,
     hasKey: !!s.key,
@@ -223,6 +227,7 @@ export function registerAiIpc(): void {
     if (typeof patch.model === 'string') next.model = patch.model.trim()
     if (typeof patch.shortContext === 'boolean') next.shortContext = patch.shortContext
     if (typeof patch.wikiTools === 'boolean') next.wikiTools = patch.wikiTools
+    if (typeof patch.readLinks === 'boolean') next.readLinks = patch.readLinks
     if (typeof patch.temperature === 'number') next.temperature = Math.min(2, Math.max(0, patch.temperature))
     if (!next.enabled) for (const c of running.values()) c.abort()
     await writeJson(file(), next)
@@ -276,6 +281,11 @@ export function registerAiIpc(): void {
     void streamChat(e.sender, id, messages)
   })
 
+  ipcMain.handle('ai:readLink', async (e, url: string) => {
+    const s = await load()
+    if (!s.enabled || !s.readLinks) throw new Error('Reading links is switched off.')
+    return readPage(BrowserWindow.fromWebContents(e.sender), String(url))
+  })
   ipcMain.handle('ai:abort', (_e, id: string) => {
     running.get(id)?.abort()
   })

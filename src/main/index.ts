@@ -7,6 +7,7 @@ import { registerAiIpc } from './ai'
 import * as share from './share'
 import type { Page, WikiMeta } from '../shared/types'
 import * as updates from './updates'
+import * as toyhouse from './toyhouse'
 
 // Images are served as stash://wiki/images/<file> from whichever wiki is open.
 protocol.registerSchemesAsPrivileged([
@@ -196,6 +197,8 @@ function registerIpc(): void {
   })
 
   // Updates: only when asked (or when the person ticked "check when StashWiki starts").
+  ipcMain.handle('toyhouse:read', (e, url: string) => toyhouse.readCharacter(win!, String(url), (p) => e.sender.send('toyhouse:progress', p)))
+  ipcMain.handle('toyhouse:download', (e, id: string, urls: string[]) => toyhouse.downloadImages(id, urls, (p) => e.sender.send('toyhouse:progress', p)))
   ipcMain.handle('updates:info', () => updates.info())
   ipcMain.handle('updates:whatsNew', () => updates.whatsNew())
   ipcMain.handle('updates:setAuto', (_e, on: boolean) => updates.setAutoCheck(!!on))

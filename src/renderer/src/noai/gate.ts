@@ -14,3 +14,4 @@ export function AiSettingsSection(): null {
   return null
 }
 export function askStoryBuddy(_mode: string, _text: string): void {}
+export function askBuddy(_text: string): void {}

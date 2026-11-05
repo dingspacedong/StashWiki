@@ -64,6 +64,8 @@ export interface AiSettings {
   shortContext: boolean
   /** Tell it how StashWiki works and let it suggest changes to categories, galleries, nav boxes, the sidebar, stories… */
   wikiTools: boolean
+  /** Read web pages linked in the person's messages (opens them in a hidden window when asked). */
+  readLinks: boolean
   /** For “local”: the computer running the model, and which program. */
   localHost: string
   localProgram: LocalProgram
@@ -90,6 +92,8 @@ export interface AiApi {
   /** Starts a streamed reply; pieces arrive through onEvent with the same id. */
   chat(id: string, messages: AiMessage[]): Promise<void>
   abort(id: string): Promise<void>
+  /** The text of a linked web page (only while readLinks is on). */
+  readLink(url: string): Promise<{ url: string; title: string; text: string }>
   onEvent(cb: (e: AiEvent) => void): () => void
 }
 

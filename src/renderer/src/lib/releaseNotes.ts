@@ -17,6 +17,34 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.17.0',
+    headline: 'Bring your characters over from Toyhouse',
+    items: [
+      {
+        icon: '⇩',
+        title: 'Import from Toyhouse',
+        text: 'On the New page screen, paste a public character’s link. You get a page with its name, its gallery (with artist credits) and its profile text.'
+      },
+      // Left out of No-AI builds altogether (not just hidden).
+      ...(__AI__
+        ? [
+            {
+              icon: '✦',
+              title: 'Or let the buddy sort it',
+              text: 'Choose to have the writing buddy put the profile into the infobox and sections. You Apply what it suggests.',
+              ai: true
+            },
+            {
+              icon: '🔗',
+              title: 'The buddy can read links',
+              text: 'Tick “Read links in my messages” in the buddy, then paste a link in a message and it reads the page.',
+              ai: true
+            }
+          ]
+        : [])
+    ]
+  },
+  {
     version: '0.16.0',
     headline: 'Link your wikis together',
     items: [

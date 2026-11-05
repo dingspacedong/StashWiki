@@ -4,6 +4,7 @@ import type { Template } from '@shared/types'
 import { findPage, useStore } from '../store'
 import { cleanTitle } from '../lib/wikitext'
 import { usePrefs } from '../lib/prefs'
+import ToyhouseImport from '../components/ToyhouseImport'
 
 /** `templateId`: a page type chosen in advance (the simple sidebar's “+”); '' means a plain page. */
 export default function NewPage({ initialTitle, templateId }: { initialTitle: string; templateId?: string }): React.JSX.Element {
@@ -12,6 +13,7 @@ export default function NewPage({ initialTitle, templateId }: { initialTitle: st
   const go = useStore((s) => s.go)
   const simple = usePrefs((s) => s.simple)
   const [title, setTitle] = useState(initialTitle)
+  const [importing, setImporting] = useState(false)
   const clean = cleanTitle(title)
   const existing = clean ? findPage(pages, clean) : undefined
 
@@ -78,6 +80,12 @@ export default function NewPage({ initialTitle, templateId }: { initialTitle: st
           </button>
         ))}
       </div>
+      <p className="th-entry">
+        <button className="btn ghost small" onClick={() => setImporting(true)}>
+          ⇩ Import a character from Toyhouse…
+        </button>
+      </p>
+      {importing && <ToyhouseImport onClose={() => setImporting(false)} />}
       {simple ? (
         <p className="hint">Page types (and their infobox fields) can be changed in Settings → Page types.</p>
       ) : (
