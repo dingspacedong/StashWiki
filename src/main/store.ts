@@ -140,6 +140,18 @@ export async function loadWiki(wikiId: string): Promise<WikiData> {
   return { meta, pages, dir }
 }
 
+/** Another wiki's page titles (no chapters), for linking to it. Reads only; the wiki isn't opened. */
+export async function wikiTitles(wikiId: string): Promise<string[]> {
+  const dir = await wikiDir(wikiId)
+  const titles: string[] = []
+  for (const name of await readdir(join(dir, 'pages')).catch(() => [] as string[])) {
+    if (!name.endsWith('.json')) continue
+    const page = await readJson<Page | null>(join(dir, 'pages', name), null)
+    if (page?.title && !page.chapter) titles.push(page.title)
+  }
+  return titles.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+}
+
 export async function saveMeta(wikiId: string, meta: WikiMeta): Promise<void> {
   const dir = await wikiDir(wikiId)
   await writeJson(join(dir, 'wiki.json'), { ...meta, updatedAt: Date.now() })

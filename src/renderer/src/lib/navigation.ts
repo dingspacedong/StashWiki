@@ -4,14 +4,23 @@ import { escapeHtml } from '@shared/defaults'
 import type { NavLink, Navbox, Page, WikiMeta } from '@shared/types'
 import { isWikiPage } from './stories'
 import { titleKey } from './wikitext'
+import { splitWikiRef } from './wikiRefs'
 
 /** What a sidebar link points at: "https://…" is a website, "Category:Name" a category, anything else a page title. */
-export type NavTarget = { kind: 'page'; title: string } | { kind: 'category'; name: string } | { kind: 'url'; url: string } | { kind: 'none' }
+export type NavTarget =
+  | { kind: 'page'; title: string }
+  | { kind: 'category'; name: string }
+  | { kind: 'url'; url: string }
+  /** "Other wiki::Page" (or "Other wiki::" for its main page). */
+  | { kind: 'wiki'; wiki: string; title: string }
+  | { kind: 'none' }
 
 export function parseTarget(target: string): NavTarget {
   const s = target.trim()
   if (!s) return { kind: 'none' }
   if (/^https?:\/\//i.test(s)) return { kind: 'url', url: s }
+  const ref = splitWikiRef(s)
+  if (ref) return { kind: 'wiki', wiki: ref.wiki, title: ref.page }
   const cat = s.match(/^category\s*:\s*(.+)$/i)
   if (cat) return { kind: 'category', name: cat[1].trim() }
   return { kind: 'page', title: s }
@@ -37,7 +46,16 @@ export function shownLinks(links: NavLink[], pages: Page[]): ShownLink[] {
     .filter((l) => l.label.trim() || l.target.trim())
     .map((l) => {
       const target = parseTarget(l.target)
-      const fallback = target.kind === 'page' ? target.title : target.kind === 'category' ? target.name : target.kind === 'url' ? target.url : ''
+      const fallback =
+        target.kind === 'page'
+          ? target.title
+          : target.kind === 'category'
+            ? target.name
+            : target.kind === 'url'
+              ? target.url
+              : target.kind === 'wiki'
+                ? target.title || target.wiki
+                : ''
       const children = shownLinks(l.children ?? [], pages)
       if (l.listPages && target.kind === 'category') {
         const have = new Set(children.map((c) => (c.target.kind === 'page' ? titleKey(c.target.title) : '')))

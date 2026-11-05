@@ -14,7 +14,8 @@ import { constants } from 'fs'
 import { dirname, join } from 'path'
 import { execFile, spawn } from 'child_process'
 import { tmpdir } from 'os'
-import type { UpdateCheck, UpdateInfo, UpdateMode, UpdateProgress } from '../shared/types'
+import type { UpdateCheck, UpdateInfo, UpdateMode, UpdateProgress, WhatsNew } from '../shared/types'
+import { dataRoot, readLibrary } from './store'
 
 export const REPO = 'dingspacedong/StashWiki'
 const RELEASES = `https://github.com/${REPO}/releases`
@@ -75,6 +76,25 @@ export async function info(): Promise<UpdateInfo> {
     // never set
   }
   return { current: app.getVersion(), mode: mode(), autoCheck, releasesUrl: RELEASES }
+}
+
+/**
+ * Whether to show "What's new": only the first time a newer version opens. The version is remembered as soon as it's
+ * shown, so it never shows twice. A brand-new install remembers its version without showing anything; a copy from
+ * before this was remembered counts as updated when it already has wikis.
+ */
+export async function whatsNew(): Promise<WhatsNew> {
+  const file = join(dataRoot(), 'seen-version.json')
+  const current = app.getVersion()
+  let seen: string | null = null
+  try {
+    seen = String(JSON.parse(await readFile(file, 'utf8')).version ?? '') || null
+  } catch {
+    // never remembered
+  }
+  const updated = seen ? newerThan(current, seen) : (await readLibrary()).wikis.length > 0
+  if (seen !== current) await writeFile(file, JSON.stringify({ version: current })).catch(() => {})
+  return { show: updated, current, previous: seen }
 }
 
 export async function setAutoCheck(on: boolean): Promise<void> {

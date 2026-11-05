@@ -1465,3 +1465,46 @@ html.sw-focus .chapter-extras { display: none; }
 .app:has(.ai-panel) .find-bar { right: 420px; }
 ::highlight(find-all) { background-color: #ffe36e; color: #1a1a1a; }
 ::highlight(find-current) { background-color: #ff9632; color: #1a1a1a; }
+
+/* Links to a page in another wiki */
+a.wikiref { color: var(--link); cursor: pointer; text-decoration: none; }
+a.wikiref:hover { text-decoration: underline; }
+a.wikiref::after { content: " ⇢"; font-size: 0.8em; opacity: 0.7; }
+.wikiref-mark { font-size: 0.8em; opacity: 0.7; }
+/* In the editor: a link to a wiki that isn't on this computer. */
+.editor-prose a.wikiref .missing, .editor-prose .missing a.wikiref, .editor-prose a.wikiref.missing { color: var(--redlink); }
+.link-panel .link-wiki { margin-bottom: 6px; }
+.link-panel .link-wiki select { flex: 1; min-width: 0; }
+
+/* What's new (once, after an update) */
+.whats-new-back { position: fixed; inset: 0; z-index: 180; display: grid; place-items: center; padding: 24px; background: rgb(12 14 22 / 0.5); backdrop-filter: blur(4px); font-family: var(--font-body); animation: wn-fade 0.25s ease-out; }
+.whats-new-back.closing { animation: wn-fade 0.18s ease-in reverse forwards; }
+.whats-new { width: min(560px, 100%); max-height: calc(100vh - 48px); display: flex; flex-direction: column; overflow: hidden; background: var(--surface); color: var(--text); border-radius: 20px; box-shadow: 0 30px 80px rgb(0 0 0 / 0.35), 0 0 0 1px color-mix(in srgb, var(--border) 60%, transparent); animation: wn-pop 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2); }
+.whats-new-back.closing .whats-new { animation: wn-pop 0.18s ease-in reverse forwards; }
+.wn-hero { position: relative; padding: 26px 28px 22px; text-align: center; color: var(--accent-text); background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--accent) 70%, #fff) 0%, var(--accent) 55%, color-mix(in srgb, var(--accent) 75%, #000) 100%); overflow: hidden; }
+.wn-logo { width: 64px; height: 64px; border-radius: 16px; background: rgb(255 255 255 / 0.92); padding: 6px; box-shadow: 0 8px 22px rgb(0 0 0 / 0.25); }
+.wn-kicker { margin-top: 12px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.85; }
+.wn-hero h2 { margin: 4px 0 2px; font-family: var(--font-heading); font-size: 26px; line-height: 1.2; color: inherit; border: 0; }
+.wn-version { display: inline-block; margin-top: 8px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: rgb(255 255 255 / 0.2); }
+.wn-sparkles span { position: absolute; color: rgb(255 255 255 / 0.55); animation: wn-twinkle 2.6s ease-in-out infinite; }
+.wn-sparkles span:nth-child(1) { top: 18px; left: 26px; font-size: 20px; }
+.wn-sparkles span:nth-child(2) { top: 54px; right: 34px; font-size: 26px; animation-delay: 0.8s; }
+.wn-sparkles span:nth-child(3) { bottom: 16px; left: 22%; font-size: 14px; animation-delay: 1.6s; }
+.wn-body { padding: 18px 24px 4px; overflow-y: auto; }
+.wn-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.wn-items li { display: flex; gap: 14px; align-items: flex-start; padding: 12px 14px; border-radius: 14px; background: var(--panel); border: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+.wn-icon { flex: none; width: 40px; height: 40px; display: grid; place-items: center; font-size: 21px; border-radius: 12px; background: color-mix(in srgb, var(--accent) 14%, var(--surface)); }
+.wn-item-title { font-weight: 700; margin-bottom: 2px; }
+.wn-item-text { color: var(--muted); font-size: 13.5px; line-height: 1.45; }
+.wn-items.small li { padding: 8px 10px; background: transparent; }
+.wn-items.small .wn-icon { width: 30px; height: 30px; font-size: 16px; border-radius: 9px; }
+.wn-older { margin: 14px 0 6px; }
+.wn-older summary { cursor: pointer; font-weight: 600; color: var(--link); padding: 4px 0; }
+.wn-older-release { margin-top: 10px; }
+.wn-older-head { margin: 0 0 4px 2px; }
+.wn-foot { display: flex; justify-content: flex-end; padding: 14px 24px 20px; }
+.wn-ok { padding: 9px 22px; font-size: 15px; border-radius: 999px; }
+@keyframes wn-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes wn-pop { from { opacity: 0; transform: translateY(14px) scale(0.96); } to { opacity: 1; transform: none; } }
+@keyframes wn-twinkle { 0%, 100% { opacity: 0.25; transform: scale(0.85); } 50% { opacity: 0.9; transform: scale(1.1); } }
+@media (prefers-reduced-motion: reduce) { .whats-new-back, .whats-new, .wn-sparkles span { animation: none !important; } }

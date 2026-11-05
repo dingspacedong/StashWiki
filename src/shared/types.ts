@@ -292,6 +292,8 @@ export interface StashApi {
   openWikiFolder(): Promise<LibraryEntry | null>
   forgetWiki(wikiId: string): Promise<void>
   loadWiki(wikiId: string): Promise<WikiData>
+  /** Another wiki's page titles, for links to it. */
+  wikiTitles(wikiId: string): Promise<string[]>
   saveMeta(wikiId: string, meta: WikiMeta): Promise<void>
   /** `snapshot: 'force'` always keeps the replaced version in the page history. */
   savePage(wikiId: string, page: Page, snapshot?: 'auto' | 'force' | 'none'): Promise<void>
@@ -350,6 +352,12 @@ export interface ImportResult {
 
 // ---------- updates ----------
 export type UpdateMode = 'setup' | 'portable' | 'mac' | 'source' | 'manual'
+export interface WhatsNew {
+  show: boolean
+  current: string
+  /** The version opened before, when known. */
+  previous: string | null
+}
 export interface UpdateInfo {
   current: string
   mode: UpdateMode
@@ -372,6 +380,8 @@ export interface UpdateProgress {
 }
 export interface UpdatesApi {
   info(): Promise<UpdateInfo>
+  /** Whether this is the first time this version opened after an update (asking also remembers the version). */
+  whatsNew(): Promise<WhatsNew>
   setAutoCheck(on: boolean): Promise<void>
   check(): Promise<UpdateCheck>
   install(): Promise<void>

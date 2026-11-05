@@ -76,6 +76,11 @@ Categories (`lib/categories.ts`): a category is any name on a page, a template o
 hold a description, an optional `parent` (making it a subcategory) and `withSubPages`. Renaming or removing one goes
 through `renameCategory` / `removeCategory`, which also update templates, sidebar links and nav boxes.
 
+Links to another wiki (`lib/wikiRefs.ts`) are written `[[Other wiki::Page]]` and stored as
+`<a data-wikiref="Other wiki" data-wiki-id="…" data-page="Page">`, apart from `data-wikilink`, so renaming pages,
+red links and "what links here" in this wiki never touch them. Clicking one opens that wiki (`openWikiRef` in
+`components/ui.tsx`); an exported website shows them as plain text.
+
 ## Stories
 
 A story is a page with `story` details (summary, status, rating, warnings, tags, characters, series, cover and the
@@ -109,6 +114,11 @@ Release files must keep these names so updates can find them:
 `StashWiki-NoAI-Portable-x.y.z.exe`, `StashWiki-x.y.z-mac-AppleSilicon.zip`, `StashWiki-x.y.z-mac-Intel.zip`,
 in a GitHub release tagged `vx.y.z`.
 
+
+**What's new**: the first time a newer version opens, `components/WhatsNew.tsx` shows the notes for it (and any versions
+skipped) from `lib/releaseNotes.ts`. `updates.whatsNew()` in the main process decides, and remembers the version in
+`seen-version.json` as soon as it answers, so it shows only once; a fresh install shows nothing. Add an entry to
+`RELEASE_NOTES` for every release (a test checks the newest one matches `package.json`).
 ## Mac builds
 
 `scripts/pack-mac.mjs` turns the official Electron macOS zip into `StashWiki.app` from Windows, entirely in memory

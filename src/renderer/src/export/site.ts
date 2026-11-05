@@ -177,6 +177,11 @@ export function buildSite(meta: WikiMeta, allPages: Record<string, Page>, opts: 
         a.replaceWith(span)
       }
     }
+    for (const a of root.querySelectorAll('a[data-wikiref]')) {
+      const span = doc.createElement('span')
+      span.innerHTML = a.innerHTML
+      a.replaceWith(span)
+    }
     for (const a of root.querySelectorAll('a[data-toc]')) {
       a.setAttribute('href', '#' + a.getAttribute('data-toc'))
       a.removeAttribute('data-toc')

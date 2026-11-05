@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { useStore, useTitleIndex } from '../store'
 import { shownLinks, type ShownLink } from '../lib/navigation'
 import { titleKey } from '../lib/wikitext'
+import { openWikiRef } from './ui'
 
 export default function SidebarSections(): React.JSX.Element | null {
   const sections = useStore((s) => s.meta?.sidebar)
@@ -47,15 +48,17 @@ function NavItem({ link }: { link: ShownLink }): React.JSX.Element {
     if (t.kind === 'page') go(page ? { kind: 'page', id: page.id } : { kind: 'new', title: t.title })
     else if (t.kind === 'category') go({ kind: 'category', name: t.name })
     else if (t.kind === 'url') void window.stash.openExternal(t.url)
+    else if (t.kind === 'wiki') void openWikiRef(t.wiki, t.title)
     else setOpen(!shown)
   }
   const cls = 'nav-link' + (here(link) ? ' active' : '') + (t.kind === 'page' && !page ? ' new' : '')
   return (
     <>
       <div className="nav-row">
-        <button className={cls} onClick={click} title={t.kind === 'url' ? t.url : t.kind === 'page' && !page ? `${t.title} (not written yet)` : undefined}>
+        <button className={cls} onClick={click} title={t.kind === 'url' ? t.url : t.kind === 'wiki' ? `In ${t.wiki}` : t.kind === 'page' && !page ? `${t.title} (not written yet)` : undefined}>
           {link.label}
           {t.kind === 'url' && ' ↗'}
+          {t.kind === 'wiki' && <span className="wikiref-mark"> ⇢</span>}
         </button>
         {link.children.length > 0 && (
           <button className="nav-toggle" title={shown ? 'Fold' : 'Show what’s in here'} onClick={() => setOpen(!shown)}>

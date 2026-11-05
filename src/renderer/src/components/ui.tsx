@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStore, useTitleIndex } from '../store'
 import { renderInlineText, titleKey } from '../lib/wikitext'
+import { findWiki } from '../lib/wikiRefs'
 
 /** A button that opens a small floating panel; the panel closes on outside click or Escape. */
 export function Dropdown({
@@ -91,6 +92,11 @@ export function handleLinkClick(e: React.MouseEvent): void {
   if (!a) return
   e.preventDefault()
   const s = useStore.getState()
+  const wiki = a.getAttribute('data-wikiref')
+  if (wiki !== null) {
+    void openWikiRef(wiki, a.getAttribute('data-page') ?? '', a.getAttribute('data-wiki-id'))
+    return
+  }
   const target = a.getAttribute('data-wikilink')
   if (target !== null) {
     const page = Object.values(s.pages).find((p) => titleKey(p.title) === titleKey(target))
@@ -104,6 +110,26 @@ export function handleLinkClick(e: React.MouseEvent): void {
   }
   const href = a.getAttribute('href')
   if (href && /^https?:/i.test(href)) void window.stash.openExternal(href)
+}
+
+/** Follow a link to another wiki: open it (if it isn't open) and go to the page, or its main page. */
+export async function openWikiRef(wiki: string, page: string, id?: string | null): Promise<void> {
+  const s = useStore.getState()
+  const entry = findWiki(s.library?.wikis ?? [], wiki, id)
+  if (!entry) return s.notify(`There’s no wiki called “${wiki}” on this computer.`)
+  const switching = entry.id !== s.wikiId
+  if (switching) {
+    if (s.dirty && !window.confirm('You have unsaved changes on this page. Leave without saving?')) return
+    await s.openWiki(entry.id)
+  }
+  const now = useStore.getState()
+  if (!page.trim()) {
+    // Opening a wiki already shows its main page.
+    if (!switching && now.meta?.mainPageId && now.pages[now.meta.mainPageId]) now.go({ kind: 'page', id: now.meta.mainPageId })
+    return
+  }
+  const found = Object.values(now.pages).find((p) => titleKey(p.title) === titleKey(page))
+  now.go(found ? { kind: 'page', id: found.id } : { kind: 'new', title: page }, { force: switching })
 }
 
 export function formatDate(ms: number): string {

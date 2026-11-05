@@ -5,6 +5,7 @@ import Shell from './Shell'
 import { historyKey, isModKey } from './lib/platform'
 import { ImportDialog, startImport } from './share/importFlow'
 import { listenForUpdates } from './components/UpdatesSection'
+import WhatsNew from './components/WhatsNew'
 
 export default function App(): React.JSX.Element {
   const library = useStore((s) => s.library)
@@ -58,6 +59,7 @@ export default function App(): React.JSX.Element {
     <>
       {wikiId ? <Shell /> : <LibraryScreen />}
       <ImportDialog />
+      <WhatsNew />
       {toast && (
         <div className="toast">
           {toast}

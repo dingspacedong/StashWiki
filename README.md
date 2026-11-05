@@ -34,6 +34,7 @@
 - **Infobox templates** for Characters, Locations, Episodes, Movies and Games — or make your own. Drag fields to reorder them, and rename, add or remove fields on just one page.
 - **Infobox picture tabs** (like *Card / Wish / In-Game*), **galleries** with captions, credits and a lightbox (mark single pictures or a whole gallery as spoilers), and pictures you can paste or drag straight in, with captions.
 - **`[[Links]]` between pages**, with red links for pages that don't exist yet. Renaming a page updates every link to it.
+- **Links to your other wikis**: `[[Other wiki::Page]]`, or pick the wiki in the Page link menu. Clicking one opens that wiki at the page. They work in sidebar links too.
 - **Categories with subcategories**: make, rename, nest (drag one onto another) and remove them from the Categories page, and choose whether a category also lists its subcategories' pages. Renaming one updates every page, template, sidebar link and nav box using it.
 - **Search**, **find on the page** (Ctrl+F, or ⌘F on a Mac), **recent changes**, **what links here**, **random page**.
 - **Category pages with picture cards** that are all the same shape (square, portrait, tall or wide). Pictures can fill the card or show whole on a color or a blurred copy, and each card can be dragged and zoomed to show the right part, or use a picture just for cards.

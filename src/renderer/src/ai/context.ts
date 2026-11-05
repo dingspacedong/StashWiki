@@ -37,6 +37,12 @@ export function bodyToText(html: string, full?: { meta: WikiMeta }): string {
   }
   return decodeEntities(
     html
+      .replace(/<a\b([^>]*\bdata-wikiref="[^"]*"[^>]*)>([\s\S]*?)<\/a>/g, (_m, attrs: string, text: string) => {
+        const wiki = attrs.match(/data-wikiref="([^"]*)"/)![1]
+        const page = attrs.match(/data-page="([^"]*)"/)?.[1] ?? ''
+        const label = text.replace(/<[^>]+>/g, '')
+        return label === decodeEntities(page || wiki) ? `[[${wiki}::${page}]]` : `[[${wiki}::${page}|${label}]]`
+      })
       .replace(/<a\b[^>]*data-wikilink="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g, (_m, t: string, text: string) => {
         const label = text.replace(/<[^>]+>/g, '')
         return label === decodeEntities(t) ? `[[${t}]]` : `[[${t}|${label}]]`

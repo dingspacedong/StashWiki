@@ -79,6 +79,12 @@ export function renderBody(
     a.title = exists(target) ? target : `${target} (page does not exist)`
     a.removeAttribute('href')
   }
+  for (const a of root.querySelectorAll<HTMLAnchorElement>('a[data-wikiref]')) {
+    const page = a.getAttribute('data-page')
+    a.classList.add('wikiref')
+    a.title = `${page ? `${page} in` : 'Main page of'} ${a.getAttribute('data-wikiref')} (another wiki)`
+    a.removeAttribute('href')
+  }
   for (const a of root.querySelectorAll<HTMLAnchorElement>('a[href]')) {
     a.classList.add('external')
     a.target = '_blank'

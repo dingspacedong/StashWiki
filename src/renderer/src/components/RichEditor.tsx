@@ -12,7 +12,8 @@ import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table
 import { Placeholder } from '@tiptap/extensions'
 import { imgUrl } from '../lib/theme'
 import { cleanTitle, titleKey } from '../lib/wikitext'
-import { Dropdown } from './ui'
+import { Dropdown, openWikiRef } from './ui'
+import { findWiki, refLabel, splitWikiRef } from '../lib/wikiRefs'
 import { CALLOUT_LABELS, Callout, NavboxBlock, PageCards, type CalloutKind } from './editorBlocks'
 import { HtmlBlock } from './htmlBlock'
 import { emptyCards } from '../lib/cards'
@@ -48,6 +49,14 @@ const WikiLink = Mark.create({
       new InputRule({
         find: /\[\[([^[\]|]+)(?:\|([^[\]]+))?\]\]$/,
         handler: ({ state, range, match }) => {
+          const ref = splitWikiRef(match[1])
+          if (ref) {
+            const id = findWiki(useStore.getState().library?.wikis ?? [], ref.wiki)?.id ?? ''
+            const text = (match[2] ?? '').trim() || refLabel(ref.wiki, ref.page)
+            state.tr.replaceWith(range.from, range.to, state.schema.text(text, [state.schema.marks.wikiRef.create({ wiki: ref.wiki, wikiId: id, page: ref.page })]))
+            state.tr.removeStoredMark(state.schema.marks.wikiRef)
+            return
+          }
           const page = cleanTitle(match[1])
           if (!page) return null
           const text = (match[2] ?? match[1]).trim()
@@ -56,6 +65,27 @@ const WikiLink = Mark.create({
         }
       })
     ]
+  }
+})
+
+/** [[Other wiki::Page]] links to a page in another wiki. Stored as <a data-wikiref="Other wiki" data-page="Page">. */
+const WikiRef = Mark.create({
+  name: 'wikiRef',
+  priority: 1001,
+  inclusive: false,
+  excludes: 'link wikiLink',
+  addAttributes() {
+    return {
+      wiki: { default: '', parseHTML: (el) => el.getAttribute('data-wikiref'), renderHTML: (a) => ({ 'data-wikiref': a.wiki }) },
+      wikiId: { default: '', parseHTML: (el) => el.getAttribute('data-wiki-id') ?? '', renderHTML: (a) => (a.wikiId ? { 'data-wiki-id': a.wikiId } : {}) },
+      page: { default: '', parseHTML: (el) => el.getAttribute('data-page') ?? '', renderHTML: (a) => ({ 'data-page': a.page }) }
+    }
+  },
+  parseHTML() {
+    return [{ tag: 'a[data-wikiref]' }]
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ['a', mergeAttributes({ class: 'wikiref' }, HTMLAttributes), 0]
   }
 })
 
@@ -74,6 +104,10 @@ const MissingLinks = Extension.create<{ exists: () => (title: string) => boolean
       doc.descendants((node, pos) => {
         const mark = node.isText ? node.marks.find((m) => m.type.name === 'wikiLink') : undefined
         if (mark && !exists(mark.attrs.page)) decos.push(Decoration.inline(pos, pos + node.nodeSize, { class: 'missing' }))
+        // A link to another wiki that isn't on this computer.
+        const ref = node.isText ? node.marks.find((m) => m.type.name === 'wikiRef') : undefined
+        if (ref && !findWiki(useStore.getState().library?.wikis ?? [], ref.attrs.wiki, ref.attrs.wikiId))
+          decos.push(Decoration.inline(pos, pos + node.nodeSize, { class: 'missing' }))
       })
       return DecorationSet.create(doc, decos)
     }
@@ -179,6 +213,7 @@ export default function RichEditor({ value, onChange, wikiId, titles, simple, on
         link: { openOnClick: false, autolink: true, HTMLAttributes: { rel: 'noreferrer', target: null } }
       }),
       WikiLink,
+      WikiRef,
       WikiImage,
       TextStyle,
       Color,
@@ -210,6 +245,11 @@ export default function RichEditor({ value, onChange, wikiId, titles, simple, on
       attributes: { class: 'prose editor-prose', spellcheck: 'true' },
       handleClick: (view, pos, event) => {
         if (!(event.metaKey || event.ctrlKey) || !openRef.current) return false
+        const ref = view.state.doc.resolve(pos).marks().find((m) => m.type.name === 'wikiRef')
+        if (ref) {
+          void openWikiRef(ref.attrs.wiki, ref.attrs.page, ref.attrs.wikiId)
+          return true
+        }
         const mark = view.state.doc.resolve(pos).marks().find((m) => m.type.name === 'wikiLink')
         if (!mark) return false
         openRef.current(mark.attrs.page)
@@ -524,7 +564,7 @@ function Toolbar({
         <div className="tb-row tb-context">
           <span className="tb-label">Links to “{linkTarget}”{exists(linkTarget) ? '' : ' (not written yet)'}</span>
           {onOpenLink && btn(exists(linkTarget) ? 'Open page →' : 'Create page →', `Go to the page (or ${isMac ? '⌘' : 'Ctrl+'}click the link)`, () => onOpenLink(linkTarget))}
-          {btn('Remove link', 'Keep the text, remove the link', () => chain().extendMarkRange('wikiLink').unsetMark('wikiLink').run())}
+          {btn('Remove link', 'Keep the text, remove the link', () => chain().extendMarkRange('wikiLink').unsetMark('wikiLink').extendMarkRange('wikiRef').unsetMark('wikiRef').run())}
         </div>
       )}
       {onImage && (
@@ -599,27 +639,34 @@ function AlignIcon({ kind }: { kind: 'left' | 'center' | 'right' }): React.JSX.E
 
 function PageLinkButton({ editor, titles }: { editor: Editor; titles: string[] }): React.JSX.Element {
   const current = editor.getAttributes('wikiLink').page as string | undefined
+  const ref = editor.getAttributes('wikiRef') as { wiki?: string; wikiId?: string; page?: string }
+  const here = ref.wiki === undefined ? undefined : ref
+  const setMark = (name: 'wikiLink' | 'wikiRef', attrs: Record<string, string>, text: string): void => {
+    const other = name === 'wikiLink' ? 'wikiRef' : 'wikiLink'
+    const ch = editor.chain().focus()
+    if (current !== undefined || here) ch.extendMarkRange(current !== undefined ? 'wikiLink' : 'wikiRef').unsetMark(other).setMark(name, attrs).run()
+    else if (editor.state.selection.empty) ch.insertContent({ type: 'text', text, marks: [{ type: name, attrs }] }).unsetMark(name).insertContent(' ').run()
+    else ch.setMark(name, attrs).run()
+  }
   return (
-    <Dropdown label="Page link" title="Link to a wiki page (or type [[Page name]])" className={'tb-btn' + (current ? ' active' : '')}>
+    <Dropdown
+      label="Page link"
+      title="Link to a wiki page (or type [[Page name]], or [[Other wiki::Page]] for a page in another wiki)"
+      className={'tb-btn' + (current !== undefined || here ? ' active' : '')}
+    >
       {(close) => (
         <PageLinkPanel
-          initial={current ?? editor.state.doc.textBetween(editor.state.selection.from, editor.state.selection.to, ' ')}
+          initial={current ?? here?.page ?? editor.state.doc.textBetween(editor.state.selection.from, editor.state.selection.to, ' ')}
+          initialWiki={here ? findWiki(useStore.getState().library?.wikis ?? [], here.wiki!, here.wikiId)?.id ?? '' : ''}
           titles={titles}
-          canRemove={!!current}
+          canRemove={current !== undefined || !!here}
           onRemove={() => {
-            editor.chain().focus().extendMarkRange('wikiLink').unsetMark('wikiLink').run()
+            editor.chain().focus().extendMarkRange('wikiLink').unsetMark('wikiLink').extendMarkRange('wikiRef').unsetMark('wikiRef').run()
             close()
           }}
-          onPick={(title) => {
-            const { empty } = editor.state.selection
-            const ch = editor.chain().focus()
-            if (current) ch.extendMarkRange('wikiLink').updateAttributes('wikiLink', { page: title }).run()
-            else if (empty) {
-              ch.insertContent({ type: 'text', text: title, marks: [{ type: 'wikiLink', attrs: { page: title } }] })
-                .unsetMark('wikiLink')
-                .insertContent(' ')
-                .run()
-            } else ch.setMark('wikiLink', { page: title }).run()
+          onPick={(title, other) => {
+            if (other) setMark('wikiRef', { wiki: other.name, wikiId: other.id, page: title }, refLabel(other.name, title))
+            else setMark('wikiLink', { page: title }, title)
             close()
           }}
         />
@@ -630,43 +677,74 @@ function PageLinkButton({ editor, titles }: { editor: Editor; titles: string[] }
 
 function PageLinkPanel({
   initial,
+  initialWiki,
   titles,
   canRemove,
   onPick,
   onRemove
 }: {
   initial: string
+  /** Another wiki to start in ('' = this one). */
+  initialWiki: string
   titles: string[]
   canRemove: boolean
-  onPick: (t: string) => void
+  onPick: (t: string, otherWiki?: { id: string; name: string }) => void
   onRemove: () => void
 }): React.JSX.Element {
   const [q, setQ] = useState(initial)
   const [sel, setSel] = useState(0)
+  const library = useStore((s) => s.library)
+  const thisWiki = useStore((s) => s.wikiId)
+  const others = (library?.wikis ?? []).filter((w) => w.id !== thisWiki)
+  const [wikiId, setWikiId] = useState(initialWiki)
+  const other = others.find((w) => w.id === wikiId)
+  const [otherTitles, setOtherTitles] = useState<string[] | null>(null)
+  useEffect(() => {
+    setOtherTitles(null)
+    if (other) void window.stash.wikiTitles(other.id).then(setOtherTitles, () => setOtherTitles([]))
+  }, [other?.id])
+  const pool = other ? (otherTitles ?? []) : titles
   const matches = useMemo(() => {
     const k = titleKey(q)
-    return titles.filter((t) => titleKey(t).includes(k)).slice(0, 8)
-  }, [q, titles])
+    return pool.filter((t) => titleKey(t).includes(k)).slice(0, 8)
+  }, [q, pool])
   const exact = matches.some((t) => titleKey(t) === titleKey(q))
   const options = exact || !cleanTitle(q) ? matches : [...matches, cleanTitle(q)]
+  // In another wiki, its main page can be linked too.
+  const all = other && !q.trim() ? ['', ...options] : options
+  const pick = (t: string): void => onPick(t, other ? { id: other.id, name: other.name } : undefined)
   return (
     <div className="link-panel">
+      {others.length > 0 && (
+        <label className="field inline small link-wiki">
+          <span>In</span>
+          <select value={wikiId} onChange={(e) => (setWikiId(e.target.value), setSel(0))}>
+            <option value="">This wiki</option>
+            {others.map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <input
         autoFocus
         value={q}
-        placeholder="Page name"
+        placeholder={other ? `Page in ${other.name}` : 'Page name'}
         onChange={(e) => (setQ(e.target.value), setSel(0))}
         onKeyDown={(e) => {
-          if (e.key === 'ArrowDown') (e.preventDefault(), setSel((s) => Math.min(s + 1, options.length - 1)))
+          if (e.key === 'ArrowDown') (e.preventDefault(), setSel((s) => Math.min(s + 1, all.length - 1)))
           if (e.key === 'ArrowUp') (e.preventDefault(), setSel((s) => Math.max(s - 1, 0)))
-          if (e.key === 'Enter' && options[sel]) (e.preventDefault(), onPick(options[sel]))
+          if (e.key === 'Enter' && all[sel] !== undefined) (e.preventDefault(), pick(all[sel]))
         }}
       />
       <div className="link-options">
-        {options.map((t, i) => (
-          <button key={t} className={i === sel ? 'sel' : ''} onClick={() => onPick(t)}>
-            {t}
-            {!titles.includes(t) && <span className="new-tag">new page</span>}
+        {other && otherTitles === null && <div className="muted small">Loading its pages…</div>}
+        {all.map((t, i) => (
+          <button key={t || '(main)'} className={i === sel ? 'sel' : ''} onClick={() => pick(t)}>
+            {t || <em>Main page of {other!.name}</em>}
+            {t && !pool.includes(t) && <span className="new-tag">new page</span>}
           </button>
         ))}
       </div>

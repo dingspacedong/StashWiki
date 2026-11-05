@@ -2,6 +2,7 @@
 import { escapeHtml } from '@shared/defaults'
 import type { Page } from '@shared/types'
 import { cardTitles, renameInCards } from './cardsData'
+import { refLabel, splitWikiRef, wikiRefTag } from './wikiRefs'
 
 /** Tidy a title as typed: collapse spaces, drop characters that would break [[link]] syntax. */
 export function cleanTitle(t: string): string {
@@ -35,11 +36,17 @@ export function renderInlineText(text: string, exists: (title: string) => boolea
   let last = 0
   for (const m of text.matchAll(LINK_RE)) {
     out += linkifyUrls(escapeHtml(text.slice(last, m.index)))
+    last = m.index! + m[0].length
+    // [[Other wiki::Page]]: a page in another wiki.
+    const ref = splitWikiRef(m[1])
+    if (ref) {
+      out += wikiRefTag(ref.wiki, ref.page, (m[2] ?? '').trim() || refLabel(ref.wiki, ref.page))
+      continue
+    }
     const target = cleanTitle(m[1])
     const label = (m[2] ?? '').trim() || m[1].trim()
     const cls = exists(target) ? 'wikilink' : 'wikilink new'
     out += `<a class="${cls}" data-wikilink="${escapeHtml(target)}">${escapeHtml(label)}</a>`
-    last = m.index! + m[0].length
   }
   out += linkifyUrls(escapeHtml(text.slice(last)))
   return out.replace(/\r?\n/g, '<br>')
@@ -57,7 +64,7 @@ export function bodyLinkTargets(html: string): string[] {
 }
 
 export function textLinkTargets(text: string): string[] {
-  return [...text.matchAll(LINK_RE)].map((m) => cleanTitle(m[1]))
+  return [...text.matchAll(LINK_RE)].filter((m) => !splitWikiRef(m[1])).map((m) => cleanTitle(m[1]))
 }
 
 /** Every title this page links to, as title keys. */

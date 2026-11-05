@@ -13,6 +13,7 @@ const api: StashApi = {
   openWikiFolder: call('openWikiFolder'),
   forgetWiki: call('forgetWiki'),
   loadWiki: call('loadWiki'),
+  wikiTitles: call('wikiTitles'),
   saveMeta: call('saveMeta'),
   savePage: call('savePage'),
   listHistory: call('listHistory'),
@@ -36,6 +37,7 @@ const api: StashApi = {
   showPath: call('showPath'),
   updates: {
     info: call('updates:info'),
+    whatsNew: call('updates:whatsNew'),
     setAutoCheck: call('updates:setAuto'),
     check: call('updates:check'),
     install: call('updates:install'),

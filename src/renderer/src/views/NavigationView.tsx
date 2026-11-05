@@ -127,6 +127,8 @@ function PageTitles(): React.JSX.Element {
   const pages = useStore((s) => s.pages)
   const cats = useAllCategories()
   const titles = useMemo(() => sortedPages(pages).map((p) => p.title), [pages])
+  const library = useStore((s) => s.library)
+  const wikiId = useStore((s) => s.wikiId)
   return (
     <>
       <datalist id="nav-targets">
@@ -136,6 +138,11 @@ function PageTitles(): React.JSX.Element {
         {cats.map((c) => (
           <option key={'c' + c} value={`Category:${c}`} />
         ))}
+        {(library?.wikis ?? [])
+          .filter((w) => w.id !== wikiId)
+          .map((w) => (
+            <option key={'w' + w.id} value={`${w.name}::`} label={`${w.name} (another wiki; add a page name after ::)`} />
+          ))}
       </datalist>
       <datalist id="nav-pages">
         {titles.map((t) => (
@@ -228,7 +235,7 @@ function LinkList({ links, onChange, depth }: { links: NavLink[]; onChange: (l: 
                 className="nav-target"
                 list="nav-targets"
                 value={l.target}
-                placeholder="Page, Category:Name, or https://…"
+                placeholder="Page, Category:Name, Other wiki::Page, or https://…"
                 onChange={(e) => set(l.id, { target: e.target.value })}
               />
               <input className="nav-label" value={l.label} placeholder="Text (optional)" onChange={(e) => set(l.id, { label: e.target.value })} />

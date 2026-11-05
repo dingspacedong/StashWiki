@@ -129,6 +129,7 @@ function registerIpc(): void {
     return data
   })
   ipcMain.handle('saveMeta', (_e, id: string, meta: WikiMeta) => store.saveMeta(id, meta))
+  ipcMain.handle('wikiTitles', (_e, id: string) => store.wikiTitles(id))
   ipcMain.handle('savePage', (_e, id: string, page: Page, snapshot?: 'auto' | 'force' | 'none') => store.savePage(id, page, snapshot ?? 'auto'))
   ipcMain.handle('listHistory', (_e, id: string, pageId: string) => store.listHistory(id, pageId))
   ipcMain.handle('readHistory', (_e, id: string, pageId: string, at: number) => store.readHistory(id, pageId, at))
@@ -196,6 +197,7 @@ function registerIpc(): void {
 
   // Updates: only when asked (or when the person ticked "check when StashWiki starts").
   ipcMain.handle('updates:info', () => updates.info())
+  ipcMain.handle('updates:whatsNew', () => updates.whatsNew())
   ipcMain.handle('updates:setAuto', (_e, on: boolean) => updates.setAutoCheck(!!on))
   ipcMain.handle('updates:check', () => updates.check())
   ipcMain.handle('updates:install', async (e) => {

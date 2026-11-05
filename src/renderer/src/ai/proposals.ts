@@ -6,6 +6,7 @@ import { addField, pageFields } from '../lib/fields'
 import { cleanTitle, titleKey } from '../lib/wikitext'
 import { bodyToText } from './context'
 import { htmlBlockTag } from '../lib/customHtml'
+import { refLabel, splitWikiRef, wikiRefTag } from '../lib/wikiRefs'
 import { emptyStory, makeChapter, makeStory, storyChapters, wordCount } from '../lib/stories'
 import { canNestUnder, categoryInfo, removeCategory, renameCategory, setCategory } from '../lib/categories'
 import { navboxTag } from '../lib/navigation'
@@ -814,6 +815,8 @@ function linkify(html: string): string {
       part.startsWith('<')
         ? part
         : part.replace(/\[\[([^[\]|]+)(?:\|([^[\]]+))?\]\]/g, (_m, target: string, label?: string) => {
+            const ref = splitWikiRef(decodeBasic(target))
+            if (ref) return wikiRefTag(ref.wiki, ref.page, label?.trim() || refLabel(ref.wiki, ref.page))
             const t = cleanTitle(target)
             return `<a data-wikilink="${escapeHtml(t)}" class="wikilink">${label ? label.trim() : t}</a>`
           })
