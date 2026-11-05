@@ -17,6 +17,15 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.17.1',
+    headline: 'Better Toyhouse imports',
+    items: [
+      { icon: '🗂️', title: 'Gallery tabs come along', text: 'Each tab in a character’s Toyhouse gallery (ref, others’ art…) becomes its own gallery on the page.' },
+      { icon: '🔗', title: 'Credits link to the artists', text: 'A picture’s credit now links to the artist’s page. You can write links like [name](https://…) in credits and infoboxes too.' },
+      { icon: '📑', title: 'Your page type’s sections stay', text: 'Imported pages keep the sections their page type starts with, after the profile text.' }
+    ]
+  },
+  {
     version: '0.17.0',
     headline: 'Bring your characters over from Toyhouse',
     items: [

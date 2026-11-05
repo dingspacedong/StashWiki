@@ -16,7 +16,7 @@ let busy = false
 /** A character link ("https://toyhou.se/12345.name", with or without https://, /gallery and so on) → its page. */
 export function characterUrl(input: string): string | null {
   const m = input.trim().match(/^(?:https?:\/\/)?(?:www\.)?toyhou\.se\/(\d+)(?:\.([^/?#\s]*))?/i)
-  return m ? `https://toyhou.se/${m[1]}.${m[2] ?? ''}` : null
+  return m ? `https://toyhou.se/${m[1]}${m[2] ? '.' + m[2] : ''}` : null
 }
 
 function thSession(): Session {
@@ -40,7 +40,7 @@ const probe = (marker: string): string => `(() => {
   const top = (document.body?.innerText || '').slice(0, 4000)
   if (/content warning/i.test(top) && document.querySelector('form button[type=submit], form input[type=submit]')) return 'blocked'
   if (document.querySelector(${JSON.stringify(marker)})) return 'ready'
-  if (/not found|404/i.test(document.title) || /this character (is hidden|does not exist)|character not found/i.test(top)) return 'gone'
+  if (/not found|404/i.test(document.title) || /page not found|can.t find that page|this character (is hidden|does not exist)|character not found/i.test(top)) return 'gone'
   return 'wait'
 })()`
 
@@ -52,9 +52,9 @@ async function open(w: BrowserWindow, url: string, marker: string, closed: () =>
   }
   w.webContents.on('did-fail-load', onFail)
   try {
-    await waitFor(w, url, marker, closed, () => failed)
+    await waitFor(w, url, marker, () => closed() || w.isDestroyed(), () => failed)
   } finally {
-    w.webContents.off('did-fail-load', onFail)
+    if (!w.isDestroyed()) w.webContents.off('did-fail-load', onFail)
   }
 }
 
@@ -65,6 +65,8 @@ async function waitFor(w: BrowserWindow, url: string, marker: string, closed: ()
     if (closed()) throw new Error('The import stopped because the Toyhouse window was closed.')
     if (failed()) throw new Error('Couldn’t reach Toyhouse. Are you online?')
     const state = await w.webContents.executeJavaScript(probe(marker)).catch(() => 'wait')
+    // The person may have closed the window while it was being looked at.
+    if (closed()) throw new Error('The import stopped because the Toyhouse window was closed.')
     if (state === 'ready') {
       if (w.isVisible()) w.hide()
       return
@@ -86,7 +88,9 @@ const READ_PROFILE = `(() => {
   const name = (document.querySelector('.profile-name-info h1, h1.display-4')?.innerText || document.querySelector('.character-name')?.innerText || '').trim()
   const creator = (document.querySelector('.profile-name-info h2')?.innerText || '').trim()
   const box = document.querySelector('.profile-content-content')
-  return { name, creator, profileHtml: box ? box.innerHTML : '', profileText: box ? box.innerText.trim() : '' }
+  // The sidebar's Gallery link has the character's full address (a bare number link doesn't work for the gallery).
+  const gallery = [...document.querySelectorAll('a')].find((a) => /\\/gallery$/.test(a.getAttribute('href') || ''))?.href || ''
+  return { name, creator, profileHtml: box ? box.innerHTML : '', profileText: box ? box.innerText.trim() : '', gallery }
 })()`
 
 const READ_GALLERY = `(() => {
@@ -94,15 +98,22 @@ const READ_GALLERY = `(() => {
     const a = li.querySelector('a.magnific-item')
     const cap = li.querySelector('.magnific-caption')
     const credits = [...(cap ? cap.querySelectorAll('.image-credits .artist-credit') : [])]
-      .map((c) => ({ name: c.innerText.trim(), url: c.querySelector('a')?.href || '' }))
+      .map((c) => {
+        // The artist's name is the link; anything after it is a note, like "(Base)".
+        const a = c.querySelector('a')
+        const all = c.innerText.replace(/\\s+/g, ' ').trim()
+        const name = (a?.innerText || '').replace(/\\s+/g, ' ').trim() || all
+        return { name, url: a?.href || '', note: all.startsWith(name) ? all.slice(name.length).trim() : '' }
+      })
       .filter((c) => c.name)
     const flags = (cap?.querySelector('.image-flags')?.innerText || '').trim()
     return {
       url: a ? a.href : '',
-      credit: credits.map((c) => c.name).join(', '),
-      creditUrl: credits[0]?.url || '',
+      credits,
       caption: (cap?.querySelector('.image-description, .image-caption')?.innerText || '').trim(),
-      spoiler: !!flags || !!li.querySelector('.image-nsfw, .thumb-nsfw, .nsfw, .image-warning')
+      spoiler: !!flags || !!li.querySelector('.image-nsfw, .thumb-nsfw, .nsfw, .image-warning'),
+      // Gallery tabs ("ref", "others' art"…) show as titled sub-galleries.
+      group: (li.closest('.character-image-subgallery')?.querySelector('.image-subgallery-title')?.innerText || '').trim()
     }
   }).filter((i) => /\\/file\\/[^/]+\\/images\\//.test(i.url))
   const next = document.querySelector('a[rel=next]') || [...document.querySelectorAll('.pagination a')].find((a) => /›|»|next/i.test(a.textContent))
@@ -134,9 +145,11 @@ export async function readCharacter(parent: BrowserWindow, input: string, progre
   try {
     progress({ stage: 'profile' })
     await open(w, url, '.profile-name-section', () => closed)
-    const profile = (await w.webContents.executeJavaScript(READ_PROFILE)) as Omit<ToyhouseCharacter, 'url' | 'images'>
+    const { gallery, ...profile } = (await w.webContents.executeJavaScript(READ_PROFILE)) as Omit<ToyhouseCharacter, 'url' | 'images'> & { gallery: string }
+    const galleryUrl = /^https:\/\/toyhou\.se\/\d+[^/]*\/gallery$/.test(gallery) ? gallery : url + '/gallery'
+    const here = galleryUrl.replace(/\/gallery$/, '')
     const images: ToyhouseImage[] = []
-    let next = url.replace(/\/?$/, '') + '/gallery'
+    let next = galleryUrl
     for (let page = 1; next && page <= MAX_PAGES; page++) {
       progress({ stage: 'gallery', page })
       await open(w, next, '.character-name', () => closed)
@@ -144,10 +157,14 @@ export async function readCharacter(parent: BrowserWindow, input: string, progre
       for (const im of got.images) if (!images.some((x) => x.url === im.url)) images.push(im)
       next = got.next && got.next !== next ? got.next : ''
     }
-    return { ...profile, url, images }
+    return { ...profile, url: here, images }
+  } catch (e) {
+    // Closed in the middle of reading: say so, rather than Electron's "Object has been destroyed".
+    if (closed || w.isDestroyed()) throw new Error('The import stopped because the Toyhouse window was closed.')
+    throw e
   } finally {
     busy = false
-    if (!closed) w.destroy()
+    if (!closed && !w.isDestroyed()) w.destroy()
   }
 }
 

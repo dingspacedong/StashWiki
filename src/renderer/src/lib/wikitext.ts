@@ -35,7 +35,7 @@ export function renderInlineText(text: string, exists: (title: string) => boolea
   let out = ''
   let last = 0
   for (const m of text.matchAll(LINK_RE)) {
-    out += linkifyUrls(escapeHtml(text.slice(last, m.index)))
+    out += linkifyUrls(text.slice(last, m.index))
     last = m.index! + m[0].length
     // [[Other wiki::Page]]: a page in another wiki.
     const ref = splitWikiRef(m[1])
@@ -48,11 +48,25 @@ export function renderInlineText(text: string, exists: (title: string) => boolea
     const cls = exists(target) ? 'wikilink' : 'wikilink new'
     out += `<a class="${cls}" data-wikilink="${escapeHtml(target)}">${escapeHtml(label)}</a>`
   }
-  out += linkifyUrls(escapeHtml(text.slice(last)))
+  out += linkifyUrls(text.slice(last))
   return out.replace(/\r?\n/g, '<br>')
 }
 
-function linkifyUrls(escaped: string): string {
+const MD_LINK = /\[([^[\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g
+
+/** Plain text with [text](https://…) links and bare web addresses made into links. */
+function linkifyUrls(raw: string): string {
+  let out = ''
+  let last = 0
+  for (const m of raw.matchAll(MD_LINK)) {
+    out += bareUrls(escapeHtml(raw.slice(last, m.index)))
+    out += `<a class="external" href="${escapeHtml(m[2])}" target="_blank" rel="noreferrer">${escapeHtml(m[1])}</a>`
+    last = m.index! + m[0].length
+  }
+  return out + bareUrls(escapeHtml(raw.slice(last)))
+}
+
+function bareUrls(escaped: string): string {
   return escaped.replace(URL_RE, (u) => `<a class="external" href="${u}" target="_blank" rel="noreferrer">${u}</a>`)
 }
 

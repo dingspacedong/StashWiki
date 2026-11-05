@@ -2,11 +2,12 @@
 // credits) and, if wanted, its profile text as the introduction, or handed to the writing buddy to sort into the page.
 import { useEffect, useState } from 'react'
 import DOMPurify from 'dompurify'
-import { newPage, uid } from '@shared/defaults'
+import { escapeHtml, newPage, uid } from '@shared/defaults'
 import type { Gallery, Page, ToyhouseCharacter, ToyhouseProgress } from '@shared/types'
 import { findPage, useStore } from '../store'
-import { cleanTitle } from '../lib/wikitext'
+import { cleanTitle, titleKey } from '../lib/wikitext'
 import { askBuddy, useAi } from '../ai/gate'
+import { creditLine, groupGalleries } from '../lib/toyhouse'
 
 /** Toyhouse profile HTML → the wiki's own simple HTML: paragraphs, lists, emphasis, links and headings (as sections). */
 export function profileToBody(html: string): string {
@@ -68,6 +69,7 @@ export default function ToyhouseImport({ onClose }: { onClose: () => void }): Re
   )
 
   const template = meta.templates.find((t) => t.id === templateId)
+  const tabs = found ? groupGalleries(found.images).length : 0
   const imageField = template?.fields.find((f) => f.type === 'image')
   const clean = cleanTitle(title)
   const taken = clean ? findPage(pages, clean) : undefined
@@ -94,17 +96,24 @@ export default function ToyhouseImport({ onClose }: { onClose: () => void }): Re
     if (gallery && found.images.length) {
       const files = await window.stash.toyhouse.download(wikiId, found.images.map((i) => i.url))
       const images = found.images
-        .map((im, n) => ({ id: uid(), file: files[n] ?? '', caption: im.caption, source: im.credit, ...(im.spoiler ? { spoiler: true } : {}) }))
-        .filter((im) => im.file)
-      if (images.length) {
-        const g: Gallery = { id: uid(), title: 'Gallery', autoCollapse: false, images }
-        page = { ...page, galleries: [g] }
-        if (usePicture && imageField) page = { ...page, infobox: { ...page.infobox, [imageField.id]: images[0].file } }
+        .map((im, n) => ({
+          group: im.group,
+          image: { id: uid(), file: files[n] ?? '', caption: im.caption, source: creditLine(im.credits), ...(im.spoiler ? { spoiler: true } : {}) }
+        }))
+        .filter((x) => x.image.file)
+      const galleries: Gallery[] = groupGalleries(images).map((g) => ({ id: uid(), title: g.title, autoCollapse: false, images: g.images.map((x) => x.image) }))
+      if (galleries.length) {
+        page = { ...page, galleries }
+        if (usePicture && imageField) page = { ...page, infobox: { ...page.infobox, [imageField.id]: galleries[0].images[0].file } }
       }
     }
-    let body = text === 'intro' ? profileToBody(found.profileHtml) : ''
-    if (backLink) body += `<p><a href="${found.url.replace(/"/g, '&quot;')}">${clean} on Toyhouse</a></p>`
-    page = { ...page, body: body || '<p></p>' }
+    // The page type's own sections stay, after the profile (any the profile already has aren't added twice).
+    const profile = text === 'intro' ? profileToBody(found.profileHtml) : ''
+    const has = new Set([...profile.matchAll(/<h2>([\s\S]*?)<\/h2>/g)].map((m) => titleKey(m[1].replace(/<[^>]+>/g, ''))))
+    const sections = (template?.sections ?? []).filter((s) => !has.has(titleKey(s))).map((s) => `<h2>${escapeHtml(s)}</h2><p></p>`)
+    let body = (profile || '<p></p>') + sections.join('')
+    if (backLink) body += `<p><a href="${found.url.replace(/"/g, '&quot;')}">${escapeHtml(clean)} on Toyhouse</a></p>`
+    page = { ...page, body }
     await useStore.getState().savePage(page)
     useStore.getState().go({ kind: 'page', id: page.id })
     onClose()
@@ -182,7 +191,8 @@ export default function ToyhouseImport({ onClose }: { onClose: () => void }): Re
               <div className="th-options">
                 <label className="check">
                   <input type="checkbox" checked={gallery} onChange={(e) => setGallery(e.target.checked)} />
-                  Import the gallery ({found.images.length} picture{found.images.length === 1 ? '' : 's'}, with artist credits)
+                  Import the gallery ({found.images.length} picture{found.images.length === 1 ? '' : 's'}
+                  {tabs > 1 ? ` in ${tabs} galleries` : ''}, with artist credits)
                 </label>
                 {gallery && imageField && (
                   <label className="check">

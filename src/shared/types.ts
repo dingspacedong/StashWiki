@@ -333,12 +333,13 @@ export interface StashApi {
 export interface ToyhouseImage {
   /** The full-size picture on Toyhouse. */
   url: string
-  /** Artist credit(s) as shown on Toyhouse. */
-  credit: string
-  creditUrl: string
+  /** Artist credit(s) as shown on Toyhouse, with a link to each artist when there is one. */
+  credits: { name: string; url: string; note?: string }[]
   caption: string
   /** Has a content warning on Toyhouse. */
   spoiler: boolean
+  /** The gallery tab it's in on Toyhouse ('' = the main gallery). */
+  group: string
 }
 
 export interface ToyhouseCharacter {
